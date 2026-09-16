@@ -177,7 +177,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-Windows-Installer-v3.0.0
+          name: UVVis-Spectrum-Studio-Windows-Installer-v3.0.1
           path: |
             installer_output/UVVis_Spectrum_Studio_Setup.exe
             build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer
@@ -190,10 +190,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v3.0.0"
+          $tag = "v3.0.1"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v3.0.0" --notes "Major analytical chemistry upgrade: analytical method validation with confidence intervals and lack-of-fit support; multicomponent spectrophotometry; Gaussian/Lorentzian/Voigt/pseudo-Voigt peak deconvolution; portable .uvvisproj project files; advanced chemometric validation with Kennard-Stone/SPXY, PLS component optimization, Y-randomization, VIP threshold selection and interval PLS; plus all existing spectroscopy, FFT/wavelet, calibration, stoichiometry and publication tools."
+            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v3.0.1" --notes "Production refresh of the v3 analytical suite. Adds full one-click .uvvisproj workspace restoration of raw spectra, curve names/colors/styles, processing parameters, publication settings and project notes; retains analytical validation, multicomponent spectrophotometry, peak deconvolution, advanced chemometric validation, FFT/wavelet analysis, calibration, stoichiometry and publication export. Scientific tests and the packaged Windows server self-test must pass before publication."
           }
           gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.exe" --clobber
           if (Test-Path "build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer") {
