@@ -33,7 +33,7 @@ from .transforms import cwt_analysis, fft_analysis, wavelet_denoise
 from .workspace_state import capture_settings, clear_project_session, restore_project_to_session
 
 APP_NAME = "UV-Vis Spectrum Studio"
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.0.1"
 COLORS = ["#2563EB", "#DC2626", "#059669", "#7C3AED", "#EA580C", "#0891B2", "#DB2777", "#475569"]
 LINE_STYLES = {"Solid": "solid", "Dashed": "dash", "Dotted": "dot", "Dash-dot": "dashdot", "Long dash": "longdash", "Long dash-dot": "longdashdot"}
 BW_STYLES = ["solid", "dash", "dot", "dashdot", "longdash", "longdashdot"]
@@ -102,8 +102,6 @@ def _load_project_before_widgets() -> None:
             st.caption(f"Active project: {len(st.session_state['_project_spectra'])} stored spectra")
             if st.button("Close project", use_container_width=True, key="close_project"):
                 clear_project_session(st.session_state)
-                st.session_state["workspace_project_upload"] = None
-                st.rerun()
         st.text_area("Project notes", key="_project_notes", height=90, placeholder="Method, sample, instrument, batch, analyst, etc.")
         st.divider()
 
@@ -262,11 +260,10 @@ div[data-testid="stMetric"]{background:#fff;border:1px solid #e5e7eb;border-radi
         gaussian_sigma = float(st.session_state["gaussian_sigma"])
         if smoothing_method in {"Savitzky-Golay", "Moving average"}:
             sc1, sc2 = st.columns(2)
-            window = int(sc1.number_input("Window", min_value=3, max_value=201, step=2, key="window"))
-            poly = int(sc2.number_input("Polynomial order", min_value=1, max_value=9, step=1, key="poly", disabled=smoothing_method != "Savitzky-Golay"))
+            window = sc1.number_input("Window", 3, 201, step=2, key="window")
+            poly = sc2.number_input("Polynomial order", 1, 9, step=1, key="poly", disabled=smoothing_method != "Savitzky-Golay")
         elif smoothing_method == "Gaussian":
-            gaussian_sigma = float(st.number_input("Gaussian σ (points)", min_value=0.1, max_value=50.0, step=0.1, key="gaussian_sigma"))
-
+            gaussian_sigma = st.number_input("Gaussian σ (points)", 0.1, 50.0, step=0.1, key="gaussian_sigma")
         st.markdown("#### Baseline / normalization")
         baseline_method = st.selectbox("Baseline", ["None", "ALS", "Linear endpoints", "Polynomial edges"], key="baseline_method")
         blam = float(st.session_state["blam"])
@@ -274,31 +271,24 @@ div[data-testid="stMetric"]{background:#fff;border:1px solid #e5e7eb;border-radi
         baseline_poly_order = int(st.session_state["baseline_poly_order"])
         baseline_edge_fraction = float(st.session_state["baseline_edge_fraction"])
         if baseline_method == "ALS":
-            blam = float(st.number_input("ALS λ", min_value=1.0, format="%.0f", key="blam"))
-            bp = float(st.number_input("ALS p", min_value=0.0001, max_value=0.5, format="%.4f", key="bp"))
+            blam = st.number_input("ALS λ", 1.0, format="%.0f", key="blam")
+            bp = st.number_input("ALS p", 0.0001, 0.5, format="%.4f", key="bp")
         elif baseline_method in {"Linear endpoints", "Polynomial edges"}:
-            baseline_edge_fraction = float(st.slider("Edge fraction", 0.02, 0.40, step=0.01, key="baseline_edge_fraction"))
+            baseline_edge_fraction = st.slider("Edge fraction", 0.02, 0.40, step=0.01, key="baseline_edge_fraction")
             if baseline_method == "Polynomial edges":
-                baseline_poly_order = int(st.number_input("Polynomial order", 1, 5, step=1, key="baseline_poly_order"))
+                baseline_poly_order = st.number_input("Polynomial order", 1, 5, step=1, key="baseline_poly_order")
         norm = st.selectbox("Normalization", ["None", "Max = 1", "Min-Max 0–1", "Area = 1"], key="norm")
         conversion = st.selectbox("Signal conversion", ["None", "Absorbance → %Transmittance", "%Transmittance → Absorbance"], key="conversion")
-
         st.markdown("#### Manual AUC")
         auc_enabled = st.toggle("Calculate area in manual range", key="auc_enabled")
         ac1, ac2 = st.columns(2)
         auc_min = ac1.number_input("AUC from (nm)", key="auc_min", disabled=not auc_enabled)
         auc_max = ac2.number_input("AUC to (nm)", key="auc_max", disabled=not auc_enabled)
         shade_auc = st.toggle("Shade selected AUC", key="shade_auc", disabled=not auc_enabled)
-
         st.divider()
         st.markdown("### Publication style")
         title = st.text_input("Figure title", key="title")
         xtitle = st.text_input("X-axis title", key="xtitle")
-        if st.session_state.get("_last_derivative_for_ylabel") != derivative_order:
-            old_default = DERIVATIVE_Y[int(st.session_state.get("_last_derivative_for_ylabel", 0))]
-            if st.session_state.get("ytitle") == old_default:
-                st.session_state["ytitle"] = DERIVATIVE_Y[derivative_order]
-            st.session_state["_last_derivative_for_ylabel"] = derivative_order
         ytitle = st.text_input("Y-axis title", key="ytitle")
         bw_mode = st.toggle("Black & white mode", key="bw_mode")
         bw_auto = st.toggle("Auto B&W patterns", key="bw_auto", disabled=not bw_mode, help="Off preserves each curve's manually selected line style.")
@@ -311,8 +301,8 @@ div[data-testid="stMetric"]{background:#fff;border:1px solid #e5e7eb;border-radi
         legendpos = st.selectbox("Legend position", ["Top right", "Top left", "Bottom right", "Bottom left", "Outside right"], key="legendpos")
         label_peaks = st.toggle("Label peaks", key="label_peaks")
         peak_prominence_pct = st.slider("Peak prominence (% Y range)", 0.1, 50.0, step=0.1, key="peak_prominence_pct")
-        peak_distance = int(st.number_input("Minimum peak distance (points)", min_value=1, max_value=10000, step=1, key="peak_distance"))
-        offset = float(st.number_input("Vertical offset", step=0.05, key="offset"))
+        peak_distance = st.number_input("Minimum peak distance (points)", 1, 10000, key="peak_distance")
+        offset = st.number_input("Vertical offset", step=0.05, key="offset")
 
     if spectra and len(spectra) >= 2:
         with st.sidebar.expander("Blank/reference & spectral arithmetic"):
@@ -325,11 +315,11 @@ div[data-testid="stMetric"]{background:#fff;border:1px solid #e5e7eb;border-radi
                 sb = next(s for s in spectra if s["name"] == b_name)
                 xo, yo = spectral_arithmetic(sa["x"], sa["y"], sb["x"], sb["y"], arithmetic)
                 dname = st.text_input("Derived curve name", f"{a_name} · {arithmetic} · {b_name}")
-                spectra.append({"name": dname, "x": xo, "y": yo, "raw_y": np.asarray(yo).copy(), "color": "#111827", "dash": "solid", "source": "Derived", "column": arithmetic})
+                spectra.append({"name": dname, "x": xo, "y": yo, "raw_y": np.asarray(yo, dtype=float).copy(), "color": "#111827", "dash": "solid", "source": "Derived", "column": arithmetic})
 
     processed = []
-    for idx, spectrum in enumerate(spectra):
-        x, y = crop_xy(spectrum["x"], spectrum["y"], xmin if crop else None, xmax if crop else None)
+    for idx, s in enumerate(spectra):
+        x, y = crop_xy(s["x"], s["y"], xmin if crop else None, xmax if crop else None)
         if len(x) < 2:
             continue
         if conversion == "Absorbance → %Transmittance":
@@ -351,33 +341,36 @@ div[data-testid="stMetric"]{background:#fff;border:1px solid #e5e7eb;border-radi
             normalization=norm,
             derivative_order=int(derivative_order),
         )
-        processed.append({**spectrum, "x": x, "analysis_y": yp, "plot_y": yp + idx * float(offset)})
+        processed.append({**s, "x": x, "analysis_y": yp, "plot_y": yp + idx * float(offset)})
 
     fig = None
-    metrics, auc_rows, zero_rows, peak_rows = [], [], [], []
+    metrics = []
+    auc_rows = []
+    zero_rows = []
+    peak_rows = []
     merged = None
     if processed:
         fig = go.Figure()
-        for idx, spectrum in enumerate(processed):
-            dash = BW_STYLES[idx % len(BW_STYLES)] if (bw_mode and bw_auto) else spectrum["dash"]
-            color = "#000000" if bw_mode else spectrum["color"]
-            fig.add_trace(go.Scatter(x=spectrum["x"], y=spectrum["plot_y"], mode="lines", name=spectrum["name"], line=dict(color=color, width=linewidth, dash=dash), hovertemplate=f"<b>{spectrum['name']}</b><br>λ=%{{x:.4f}} nm<br>Signal=%{{y:.8g}}<extra></extra>"))
-            yrange = float(np.nanmax(spectrum["analysis_y"]) - np.nanmin(spectrum["analysis_y"]))
+        for idx, s in enumerate(processed):
+            dash = BW_STYLES[idx % len(BW_STYLES)] if (bw_mode and bw_auto) else s["dash"]
+            color = "#000000" if bw_mode else s["color"]
+            fig.add_trace(go.Scatter(x=s["x"], y=s["plot_y"], mode="lines", name=s["name"], line=dict(color=color, width=linewidth, dash=dash), hovertemplate=f"<b>{s['name']}</b><br>λ=%{{x:.4f}} nm<br>Signal=%{{y:.8g}}<extra></extra>"))
+            yrange = float(np.nanmax(s["analysis_y"]) - np.nanmin(s["analysis_y"]))
             prominence = max(yrange * peak_prominence_pct / 100.0, np.finfo(float).eps)
-            peaks = peak_table(spectrum["x"], spectrum["analysis_y"], prominence=prominence, distance=int(peak_distance))
-            peak_rows.extend([{"Curve": spectrum["name"], **p} for p in peaks])
+            peaks = peak_table(s["x"], s["analysis_y"], prominence=prominence, distance=int(peak_distance))
+            peak_rows.extend([{"Curve": s["name"], **p} for p in peaks])
             if label_peaks and peaks:
-                fig.add_trace(go.Scatter(x=[p["wavelength_nm"] for p in peaks], y=[signal_at_wavelength(spectrum["x"], spectrum["plot_y"], p["wavelength_nm"]) for p in peaks], mode="markers+text", marker=dict(size=6, color=color), text=[f"{p['wavelength_nm']:.1f}" for p in peaks], textposition="top center", showlegend=False, hoverinfo="skip"))
+                fig.add_trace(go.Scatter(x=[p["wavelength_nm"] for p in peaks], y=[signal_at_wavelength(s["x"], s["plot_y"], p["wavelength_nm"]) for p in peaks], mode="markers+text", marker=dict(size=6, color=color), text=[f"{p['wavelength_nm']:.1f}" for p in peaks], textposition="top center", showlegend=False, hoverinfo="skip"))
             if auc_enabled:
-                signed_auc, absolute_auc, xa, ya = integrate_range(spectrum["x"], spectrum["analysis_y"], auc_min, auc_max)
+                signed_auc, absolute_auc, xa, ya = integrate_range(s["x"], s["analysis_y"], auc_min, auc_max)
                 if len(xa) >= 2:
-                    auc_rows.append({"Curve": spectrum["name"], "From (nm)": float(xa[0]), "To (nm)": float(xa[-1]), "Signed AUC": signed_auc, "Absolute AUC": absolute_auc})
+                    auc_rows.append({"Curve": s["name"], "From (nm)": float(xa[0]), "To (nm)": float(xa[-1]), "Signed AUC": signed_auc, "Absolute AUC": absolute_auc})
                     if shade_auc:
                         fig.add_trace(go.Scatter(x=xa, y=ya + idx * float(offset), fill="tozeroy", mode="none", showlegend=False, hoverinfo="skip", fillcolor="rgba(80,80,80,.10)" if bw_mode else "rgba(37,99,235,.08)"))
-            metrics.append({"Curve": spectrum["name"], **asdict(calculate_metrics(spectrum["x"], spectrum["analysis_y"], prominence=prominence))})
+            metrics.append({"Curve": s["name"], **asdict(calculate_metrics(s["x"], s["analysis_y"], prominence=prominence))})
             if derivative_order > 0:
-                zero_rows.extend([{"Curve": spectrum["name"], **z} for z in zero_crossings(spectrum["x"], spectrum["analysis_y"], tolerance=max(yrange * 1e-8, 0))])
-            part = pd.DataFrame({"Wavelength_nm": spectrum["x"], spectrum["name"]: spectrum["analysis_y"]})
+                zero_rows.extend([{"Curve": s["name"], **z} for z in zero_crossings(s["x"], s["analysis_y"], tolerance=max(yrange * 1e-8, 0))])
+            part = pd.DataFrame({"Wavelength_nm": s["x"], s["name"]: s["analysis_y"]})
             merged = part if merged is None else pd.merge(merged, part, on="Wavelength_nm", how="outer")
         if merged is not None:
             merged = merged.sort_values("Wavelength_nm")
@@ -394,11 +387,11 @@ div[data-testid="stMetric"]{background:#fff;border:1px solid #e5e7eb;border-radi
         if crop:
             fig.update_xaxes(range=[xmin, xmax])
 
-    tabs = st.tabs(["📈 Spectra", "∂ Derivatives & AUC", "〰 FFT / Wavelet", "📏 Calibration", "🧪 Stoichiometry", "➕ Standard addition", "🧮 Chemometrics", "📊 Data & metrics", "💾 Publication & Project"])
+    tabs = st.tabs(["📈 Spectra", "∂ Derivatives & AUC", "〰 FFT / Wavelet", "📏 Calibration", "🧪 Stoichiometry", "➕ Standard addition", "🧮 Chemometrics", "📊 Data & metrics", "💾 Project & export"])
 
     with tabs[0]:
         if fig is None:
-            st.info("Load spectra or open a .uvvisproj project. Quantitation and stoichiometry tabs work without a spectral file.")
+            st.info("Load one or more spectra from the left panel. Quantitation and stoichiometry tabs work without a spectral file.")
         else:
             st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False, "scrollZoom": True, "responsive": True})
             st.caption(f"Smoothing: {smoothing_method}. Baseline: {baseline_method}. Normalization: {norm}. These are never enabled automatically.")
@@ -439,7 +432,7 @@ div[data-testid="stMetric"]{background:#fff;border:1px solid #e5e7eb;border-radi
             fft_window = fc1.selectbox("FFT window", ["Hann", "Hamming", "Blackman", "None"])
             fft_detrend = fc2.toggle("Linear detrend before FFT", True)
             fr = fft_analysis(target["x"], target["analysis_y"], detrend=fft_detrend, window=fft_window)
-            st.metric("Dominant spectral period", f"{fr['dominant_period_nm']:.4g} nm" if np.isfinite(fr["dominant_period_nm"]) else "—")
+            st.metric("Dominant spectral period", f"{fr['dominant_period_nm']:.4g} nm" if np.isfinite(fr['dominant_period_nm']) else "—")
             ffig = go.Figure(go.Scatter(x=fr["frequency_per_nm"], y=fr["power"], mode="lines"))
             ffig.update_layout(template="plotly_white", xaxis_title="Spatial frequency (cycles/nm)", yaxis_title="FFT power", title="FFT power spectrum")
             st.plotly_chart(ffig, use_container_width=True)
