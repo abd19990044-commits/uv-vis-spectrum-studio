@@ -1,6 +1,6 @@
 import numpy as np
 
-from uvvis_studio.advanced import isosbestic_points, linear_calibration
+from uvvis_studio.quantitation import isosbestic_points, linear_calibration
 
 
 def test_linear_calibration_exact_line():
@@ -9,7 +9,7 @@ def test_linear_calibration_exact_line():
     result = linear_calibration(c, y, sigma=0.05)
     assert abs(result.slope - 2.5) < 1e-12
     assert abs(result.intercept - 0.2) < 1e-12
-    assert abs(result.r_squared - 1.0) < 1e-12
+    assert abs(result.r2 - 1.0) < 1e-12
     assert abs(result.lod - (3.3 * 0.05 / 2.5)) < 1e-12
     assert abs(result.loq - (10.0 * 0.05 / 2.5)) < 1e-12
 
