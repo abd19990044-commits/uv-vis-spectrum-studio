@@ -60,18 +60,15 @@ def configure_runtime() -> None:
     bundled_chrome = Path(resource_path("vendor/chrome/chrome.exe"))
     if bundled_chrome.exists():
         os.environ["BROWSER_PATH"] = str(bundled_chrome)
+    os.environ.setdefault("STREAMLIT_GLOBAL_DEVELOPMENT_MODE", "false")
     os.environ.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
     os.environ.setdefault("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
+    os.environ.setdefault("STREAMLIT_SERVER_HEADLESS", "true")
+    os.environ.setdefault("STREAMLIT_SERVER_ADDRESS", "127.0.0.1")
 
 
 def run_streamlit(port: int) -> None:
-    """Run Streamlit through its supported CLI parser inside the frozen child.
-
-    Streamlit's internal bootstrap API changed across releases and may ignore
-    dotted config keys supplied programmatically. The CLI parser is the stable
-    path used by `streamlit run` itself, so the requested loopback address and
-    dynamically selected port are applied consistently in frozen Windows builds.
-    """
+    """Run Streamlit through its supported CLI parser inside the frozen child."""
     configure_runtime()
     app_path = resource_path("app.py")
     with log_path().open("a", encoding="utf-8", buffering=1) as log:
@@ -88,6 +85,8 @@ def run_streamlit(port: int) -> None:
             "streamlit",
             "run",
             app_path,
+            "--global.developmentMode",
+            "false",
             "--server.port",
             str(port),
             "--server.address",
@@ -106,6 +105,7 @@ def start_server_process(port: int) -> tuple[subprocess.Popen[bytes], object]:
     log_file = log_path().open("ab", buffering=0)
     env = os.environ.copy()
     env["UVVIS_DESKTOP_CHILD"] = "1"
+    env["STREAMLIT_GLOBAL_DEVELOPMENT_MODE"] = "false"
     creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     process = subprocess.Popen(
         [sys.executable, SERVER_FLAG, str(port)],
