@@ -1,3 +1,5 @@
-from uvvis_studio.main_app import run
+from uvvis_studio import __version__
+from uvvis_studio import main_app
 
-run()
+main_app.APP_VERSION = __version__
+main_app.run()
