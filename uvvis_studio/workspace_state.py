@@ -40,6 +40,15 @@ PROJECT_WIDGET_KEYS = {
     "offset",
 }
 
+DASH_TO_LABEL = {
+    "solid": "Solid",
+    "dash": "Dashed",
+    "dot": "Dotted",
+    "dashdot": "Dash-dot",
+    "longdash": "Long dash",
+    "longdashdot": "Long dash-dot",
+}
+
 
 def capture_settings(session_state) -> dict:
     """Capture only stable user-facing workspace settings."""
@@ -59,17 +68,15 @@ def restore_project_to_session(session_state, project: dict) -> None:
         if key in PROJECT_WIDGET_KEYS:
             session_state[key] = value
 
-    spectra = []
-    for spectrum in project.get("spectra", []):
-        item = deepcopy(spectrum)
-        spectra.append(item)
+    spectra = [deepcopy(spectrum) for spectrum in project.get("spectra", [])]
     session_state["_project_spectra"] = spectra
     session_state["_project_notes"] = str(project.get("notes", ""))
 
     for i, spectrum in enumerate(spectra):
         session_state[f"project_name_{i}"] = str(spectrum.get("name", f"Spectrum {i + 1}"))
         session_state[f"project_color_{i}"] = str(spectrum.get("color", "#2563EB"))
-        session_state[f"project_dash_{i}"] = str(spectrum.get("dash", "solid"))
+        dash = str(spectrum.get("dash", "solid"))
+        session_state[f"project_style_{i}"] = DASH_TO_LABEL.get(dash, "Solid")
 
 
 def clear_project_session(session_state) -> None:
@@ -77,5 +84,10 @@ def clear_project_session(session_state) -> None:
     session_state.pop("_project_notes", None)
     session_state.pop("_loaded_project_token", None)
     for key in list(session_state.keys()):
-        if key in PROJECT_WIDGET_KEYS or key.startswith("project_name_") or key.startswith("project_color_") or key.startswith("project_dash_"):
+        if (
+            key in PROJECT_WIDGET_KEYS
+            or key.startswith("project_name_")
+            or key.startswith("project_color_")
+            or key.startswith("project_style_")
+        ):
             session_state.pop(key, None)
