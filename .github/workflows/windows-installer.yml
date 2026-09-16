@@ -12,6 +12,11 @@ on:
       - "build_assets/**"
       - "installer/**"
       - ".github/workflows/windows-installer.yml"
+  release:
+    types: [published]
+
+permissions:
+  contents: write
 
 jobs:
   build-windows-installer:
@@ -96,3 +101,16 @@ jobs:
           path: installer_output/UVVis_Spectrum_Studio_Setup.exe
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish installer to GitHub Release
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v1.0.0"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "UV-Vis Spectrum Studio v1.0.0" --notes "Windows installer for UV-Vis Spectrum Studio. Includes the beginner-friendly desktop interface and offline scientific export support."
+          }
+          gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.exe" --clobber
