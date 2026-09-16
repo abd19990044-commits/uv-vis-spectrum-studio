@@ -14,7 +14,6 @@ import plotly  # noqa: F401
 import scipy  # noqa: F401
 import streamlit  # noqa: F401
 import uvvis_studio  # noqa: F401
-from streamlit.web import bootstrap
 
 APP_NAME = "UVVisSpectrumStudio"
 SERVER_FLAG = "--uvvis-server"
@@ -44,7 +43,7 @@ def find_free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def wait_for_server(port: int, process: subprocess.Popen[bytes], timeout: float = 75.0) -> bool:
+def wait_for_server(port: int, process: subprocess.Popen[bytes], timeout: float = 90.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if process.poll() is not None:
@@ -66,30 +65,41 @@ def configure_runtime() -> None:
 
 
 def run_streamlit(port: int) -> None:
+    """Run Streamlit through its supported CLI parser inside the frozen child.
+
+    Streamlit's internal bootstrap API changed across releases and may ignore
+    dotted config keys supplied programmatically. The CLI parser is the stable
+    path used by `streamlit run` itself, so the requested loopback address and
+    dynamically selected port are applied consistently in frozen Windows builds.
+    """
     configure_runtime()
     app_path = resource_path("app.py")
     with log_path().open("a", encoding="utf-8", buffering=1) as log:
-        # PyInstaller --windowed sets stdout/stderr to None on Windows. Streamlit and
-        # dependencies may still write to them, so provide a real stream.
         sys.stdout = log
         sys.stderr = log
         print(f"\n=== UV-Vis server start {time.strftime('%Y-%m-%d %H:%M:%S')} ===")
         print(f"Executable: {sys.executable}")
         print(f"App path: {app_path}")
-        print(f"Port: {port}")
-        bootstrap.run(
+        print(f"Requested port: {port}")
+
+        from streamlit.web import cli as stcli
+
+        sys.argv = [
+            "streamlit",
+            "run",
             app_path,
-            False,
-            [],
-            {
-                "server.port": port,
-                "server.address": "127.0.0.1",
-                "server.headless": True,
-                "server.fileWatcherType": "none",
-                "browser.gatherUsageStats": False,
-                "global.developmentMode": False,
-            },
-        )
+            "--server.port",
+            str(port),
+            "--server.address",
+            "127.0.0.1",
+            "--server.headless",
+            "true",
+            "--server.fileWatcherType",
+            "none",
+            "--browser.gatherUsageStats",
+            "false",
+        ]
+        stcli.main()
 
 
 def start_server_process(port: int) -> tuple[subprocess.Popen[bytes], object]:
@@ -123,7 +133,7 @@ def packaged_self_test() -> int:
     port = find_free_port()
     server, log_file = start_server_process(port)
     try:
-        if not wait_for_server(port, server, timeout=60.0):
+        if not wait_for_server(port, server, timeout=90.0):
             return 2
         marker = os.environ.get("UVVIS_SELF_TEST_MARKER")
         if marker:
@@ -172,8 +182,6 @@ def main() -> None:
 
 
 def entrypoint() -> None:
-    # When frozen, launch a second instance of this executable only as the
-    # Streamlit server process. This avoids multiprocessing/spawn recursion.
     if len(sys.argv) >= 3 and sys.argv[1] == SERVER_FLAG:
         run_streamlit(int(sys.argv[2]))
         return
