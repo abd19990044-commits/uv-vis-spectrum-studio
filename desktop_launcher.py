@@ -11,12 +11,17 @@ from pathlib import Path
 import numpy  # noqa: F401
 import pandas  # noqa: F401
 import plotly  # noqa: F401
+import pywt  # noqa: F401
 import scipy  # noqa: F401
+import sklearn  # noqa: F401
 import streamlit  # noqa: F401
 import uvvis_studio  # noqa: F401
 import uvvis_studio.analysis  # noqa: F401
+import uvvis_studio.chemometrics  # noqa: F401
 import uvvis_studio.export  # noqa: F401
 import uvvis_studio.io  # noqa: F401
+import uvvis_studio.quantitation  # noqa: F401
+import uvvis_studio.transforms  # noqa: F401
 
 APP_NAME = "UVVisSpectrumStudio"
 SERVER_FLAG = "--uvvis-server"
@@ -71,7 +76,6 @@ def configure_runtime() -> None:
 
 
 def run_streamlit(port: int) -> None:
-    """Run Streamlit through its supported CLI parser inside the frozen child."""
     configure_runtime()
     app_path = resource_path("app.py")
     with log_path().open("a", encoding="utf-8", buffering=1) as log:
@@ -81,26 +85,16 @@ def run_streamlit(port: int) -> None:
         print(f"Executable: {sys.executable}")
         print(f"App path: {app_path}")
         print(f"Requested port: {port}")
-        print("Scientific modules imported: uvvis_studio.analysis, uvvis_studio.io, uvvis_studio.export")
-
+        print("Scientific modules imported: analysis, chemometrics, quantitation, transforms, io, export")
         from streamlit.web import cli as stcli
-
         sys.argv = [
-            "streamlit",
-            "run",
-            app_path,
-            "--global.developmentMode",
-            "false",
-            "--server.port",
-            str(port),
-            "--server.address",
-            "127.0.0.1",
-            "--server.headless",
-            "true",
-            "--server.fileWatcherType",
-            "none",
-            "--browser.gatherUsageStats",
-            "false",
+            "streamlit", "run", app_path,
+            "--global.developmentMode", "false",
+            "--server.port", str(port),
+            "--server.address", "127.0.0.1",
+            "--server.headless", "true",
+            "--server.fileWatcherType", "none",
+            "--browser.gatherUsageStats", "false",
         ]
         stcli.main()
 
@@ -134,12 +128,12 @@ def stop_process(process: subprocess.Popen[bytes]) -> None:
 
 
 def packaged_self_test() -> int:
-    # These imports are intentional. If PyInstaller misses a project submodule,
-    # the packaged self-test must fail before an installer is published.
     import uvvis_studio.analysis  # noqa: F401
+    import uvvis_studio.chemometrics  # noqa: F401
     import uvvis_studio.export  # noqa: F401
     import uvvis_studio.io  # noqa: F401
-
+    import uvvis_studio.quantitation  # noqa: F401
+    import uvvis_studio.transforms  # noqa: F401
     port = find_free_port()
     server, log_file = start_server_process(port)
     try:
@@ -157,7 +151,6 @@ def packaged_self_test() -> int:
 def main() -> None:
     port = find_free_port()
     server, log_file = start_server_process(port)
-
     try:
         if not wait_for_server(port, server):
             exit_code = server.poll()
@@ -165,19 +158,13 @@ def main() -> None:
                 "The local UV-Vis server could not be started. "
                 f"Exit code: {exit_code}. Diagnostic log: {log_path()}"
             )
-
         url = f"http://127.0.0.1:{port}"
         try:
             import webview
-
             webview.create_window(
-                "UV-Vis Spectrum Studio",
-                url,
-                width=1440,
-                height=900,
-                min_size=(1050, 680),
-                background_color="#f7f9fc",
-                text_select=True,
+                "UV-Vis Spectrum Studio", url,
+                width=1440, height=900, min_size=(1050, 680),
+                background_color="#f7f9fc", text_select=True,
             )
             webview.start(debug=False, private_mode=False)
         except Exception as exc:
