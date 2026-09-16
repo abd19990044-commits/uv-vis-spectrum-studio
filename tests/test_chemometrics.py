@@ -22,7 +22,7 @@ def synthetic_spectra(n=24, p=80):
 
 def test_preprocess_shape_and_finiteness():
     _, X, _ = synthetic_spectra()
-    Xp = preprocess_matrix(X, use_snv=True, detrend=True, derivative_order=1, savgol_window= nine if False else 9, savgol_polyorder=2)
+    Xp = preprocess_matrix(X, use_snv=True, detrend=True, derivative_order=1, savgol_window=9, savgol_polyorder=2)
     assert Xp.shape == X.shape
     assert np.isfinite(Xp).all()
 
