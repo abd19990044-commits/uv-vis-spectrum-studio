@@ -76,16 +76,12 @@ jobs:
             --collect-all streamlit `
             --collect-all plotly `
             --collect-all pywt `
+            --collect-all sklearn `
             --hidden-import kaleido `
             --collect-data kaleido `
             --hidden-import choreographer `
             --collect-data choreographer `
             --collect-all webview `
-            --hidden-import uvvis_studio.analysis `
-            --hidden-import uvvis_studio.io `
-            --hidden-import uvvis_studio.export `
-            --hidden-import uvvis_studio.transforms `
-            --hidden-import uvvis_studio.quantitation `
             --collect-submodules uvvis_studio `
             desktop_launcher.py
 
@@ -114,7 +110,6 @@ jobs:
             "SIGNING_MODE=self-signed" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
           "SIGNING_CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Signing certificate: $($cert.Subject)"
 
       - name: Sign desktop executable
         shell: pwsh
@@ -127,9 +122,7 @@ jobs:
           } else {
             Set-AuthenticodeSignature -FilePath $exe -Certificate $cert -HashAlgorithm SHA256 | Out-Null
           }
-          $sig = Get-AuthenticodeSignature $exe
-          if ($null -eq $sig.SignerCertificate) { throw "Desktop executable was not signed." }
-          Write-Host "Desktop signer: $($sig.SignerCertificate.Subject); trust status: $($sig.Status)"
+          if ($null -eq (Get-AuthenticodeSignature $exe).SignerCertificate) { throw "Desktop executable was not signed." }
 
       - name: Run packaged server self-test
         shell: pwsh
@@ -149,17 +142,14 @@ jobs:
               $passed = $true
               break
             }
-            if ($process.HasExited) {
-              Write-Host "Self-test process exited with code $($process.ExitCode) before writing marker."
-              break
-            }
+            if ($process.HasExited) { break }
             Start-Sleep -Seconds 1
           }
           Get-Process -Name "UV-Vis Spectrum Studio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
           if (-not $passed) {
             $log = Join-Path $env:LOCALAPPDATA "UVVisSpectrumStudio\logs\startup.log"
             if (Test-Path $log) { Get-Content $log -Tail 250 }
-            throw "The packaged UV-Vis server did not reach a ready state with project modules loaded."
+            throw "The packaged UV-Vis server did not reach a ready state with v3 modules loaded."
           }
 
       - name: Install Inno Setup
@@ -182,14 +172,12 @@ jobs:
           } else {
             Set-AuthenticodeSignature -FilePath $installer -Certificate $cert -HashAlgorithm SHA256 | Out-Null
           }
-          $sig = Get-AuthenticodeSignature $installer
-          if ($null -eq $sig.SignerCertificate) { throw "Installer was not signed." }
-          Write-Host "Installer signer: $($sig.SignerCertificate.Subject); trust status: $($sig.Status)"
+          if ($null -eq (Get-AuthenticodeSignature $installer).SignerCertificate) { throw "Installer was not signed." }
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-Windows-Installer-v2.0.0
+          name: UVVis-Spectrum-Studio-Windows-Installer-v3.0.0
           path: |
             installer_output/UVVis_Spectrum_Studio_Setup.exe
             build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer
@@ -202,10 +190,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v2.0.0"
+          $tag = "v3.0.0"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v2.0.0" --notes "Major analytical-suite release. Adds FFT power-spectrum analysis, DWT wavelet denoising preview, CWT scalograms, manual Beer-Lambert calibration with slope/intercept/R²/residuals/LOD/LOQ and molar absorptivity, Job and mole-ratio stoichiometry, standard addition, isosbestic-point analysis, manual-range AUC, 0D-4D derivatives, baseline/smoothing controls kept OFF by default, all curves Solid by default with editable names/styles, and publication export. Demo and Deploy UI remain removed. Scientific tests and packaged Windows startup tests must pass before publication."
+            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v3.0.0" --notes "Major analytical chemistry upgrade: analytical method validation with confidence intervals and lack-of-fit support; multicomponent spectrophotometry; Gaussian/Lorentzian/Voigt/pseudo-Voigt peak deconvolution; portable .uvvisproj project files; advanced chemometric validation with Kennard-Stone/SPXY, PLS component optimization, Y-randomization, VIP threshold selection and interval PLS; plus all existing spectroscopy, FFT/wavelet, calibration, stoichiometry and publication tools."
           }
           gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.exe" --clobber
           if (Test-Path "build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer") {
