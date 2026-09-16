@@ -75,6 +75,7 @@ jobs:
             --add-data "vendor/chrome;vendor/chrome" `
             --collect-all streamlit `
             --collect-all plotly `
+            --collect-all pywt `
             --hidden-import kaleido `
             --collect-data kaleido `
             --hidden-import choreographer `
@@ -83,6 +84,8 @@ jobs:
             --hidden-import uvvis_studio.analysis `
             --hidden-import uvvis_studio.io `
             --hidden-import uvvis_studio.export `
+            --hidden-import uvvis_studio.transforms `
+            --hidden-import uvvis_studio.quantitation `
             --collect-submodules uvvis_studio `
             desktop_launcher.py
 
@@ -186,7 +189,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-Windows-Installer-v1.2.0
+          name: UVVis-Spectrum-Studio-Windows-Installer-v2.0.0
           path: |
             installer_output/UVVis_Spectrum_Studio_Setup.exe
             build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer
@@ -199,10 +202,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v1.2.0"
+          $tag = "v2.0.0"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v1.2.0" --notes "Advanced spectroscopy release: original through fourth derivatives (0D–4D), zero-crossing analysis, interpolated selected-range AUC, peak labels, S/N estimation, signal extraction at selected wavelengths, multiple smoothing and baseline methods, blank/reference subtraction and spectral arithmetic, absorbance/transmittance conversion, monochrome publication controls, removal of demo and deployment UI, plus high-resolution PNG/SVG/PDF/CSV export. Scientific tests and packaged Windows startup tests must pass before publication. Authenticode signing is included; fallback signing remains self-signed unless trusted PFX secrets are configured."
+            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v2.0.0" --notes "Major analytical-suite release. Adds FFT power-spectrum analysis, DWT wavelet denoising preview, CWT scalograms, manual Beer-Lambert calibration with slope/intercept/R²/residuals/LOD/LOQ and molar absorptivity, Job and mole-ratio stoichiometry, standard addition, isosbestic-point analysis, manual-range AUC, 0D-4D derivatives, baseline/smoothing controls kept OFF by default, all curves Solid by default with editable names/styles, and publication export. Demo and Deploy UI remain removed. Scientific tests and packaged Windows startup tests must pass before publication."
           }
           gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.exe" --clobber
           if (Test-Path "build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer") {
