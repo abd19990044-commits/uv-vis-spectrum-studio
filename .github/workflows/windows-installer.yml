@@ -1,0 +1,96 @@
+name: Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app.py"
+      - "desktop_launcher.py"
+      - "uvvis_studio/**"
+      - "requirements-desktop.txt"
+      - "build_assets/**"
+      - "installer/**"
+      - ".github/workflows/windows-installer.yml"
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-desktop.txt
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-desktop.txt
+
+      - name: Run scientific tests
+        shell: pwsh
+        run: |
+          pip install pytest
+          pytest -q
+
+      - name: Create application icon
+        shell: pwsh
+        run: python build_assets/make_icon.py
+
+      - name: Bundle Chrome for offline scientific export
+        shell: pwsh
+        run: |
+          $chromePath = python -c "import kaleido; print(kaleido.get_chrome_sync())"
+          $chromePath = $chromePath.Trim()
+          if (!(Test-Path $chromePath)) { throw "Kaleido Chrome download failed: $chromePath" }
+          New-Item -ItemType Directory -Force -Path "vendor/chrome" | Out-Null
+          $chromeDir = Split-Path -Parent $chromePath
+          Copy-Item -Path "$chromeDir/*" -Destination "vendor/chrome" -Recurse -Force
+          if (!(Test-Path "vendor/chrome/chrome.exe")) { throw "Bundled chrome.exe was not found." }
+
+      - name: Build desktop application
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --windowed --onedir `
+            --name "UV-Vis Spectrum Studio" `
+            --icon "build_assets/app.ico" `
+            --add-data "app.py;." `
+            --add-data ".streamlit;.streamlit" `
+            --add-data "vendor/chrome;vendor/chrome" `
+            --collect-all streamlit `
+            --collect-all plotly `
+            --collect-all kaleido `
+            --collect-all choreographer `
+            --collect-all webview `
+            --collect-submodules uvvis_studio `
+            desktop_launcher.py
+
+      - name: Smoke-check executable bundle
+        shell: pwsh
+        run: |
+          if (!(Test-Path "dist/UV-Vis Spectrum Studio/UV-Vis Spectrum Studio.exe")) { throw "Desktop executable was not created." }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer EXE
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\uvvis_studio.iss"
+          if (!(Test-Path "installer_output/UVVis_Spectrum_Studio_Setup.exe")) { throw "Installer was not created." }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UVVis-Spectrum-Studio-Windows-Installer
+          path: installer_output/UVVis_Spectrum_Studio_Setup.exe
+          if-no-files-found: error
+          retention-days: 30
