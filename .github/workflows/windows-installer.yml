@@ -69,6 +69,7 @@ jobs:
             --icon "build_assets/app.ico" `
             --add-data "app.py;." `
             --add-data ".streamlit;.streamlit" `
+            --add-data "uvvis_studio;uvvis_studio" `
             --add-data "vendor/chrome;vendor/chrome" `
             --collect-all streamlit `
             --collect-all plotly `
@@ -77,6 +78,9 @@ jobs:
             --hidden-import choreographer `
             --collect-data choreographer `
             --collect-all webview `
+            --hidden-import uvvis_studio.analysis `
+            --hidden-import uvvis_studio.io `
+            --hidden-import uvvis_studio.export `
             --collect-submodules uvvis_studio `
             desktop_launcher.py
 
@@ -134,8 +138,10 @@ jobs:
           $passed = $false
           while ((Get-Date) -lt $deadline) {
             if (Test-Path $marker) {
+              $markerText = Get-Content $marker -Raw
+              Write-Host "Packaged server self-test marker: $markerText"
+              if ($markerText -notmatch ":modules") { throw "Project-module import verification did not run." }
               $passed = $true
-              Write-Host "Packaged server self-test marker: $(Get-Content $marker -Raw)"
               break
             }
             if ($process.HasExited) {
@@ -148,7 +154,7 @@ jobs:
           if (-not $passed) {
             $log = Join-Path $env:LOCALAPPDATA "UVVisSpectrumStudio\logs\startup.log"
             if (Test-Path $log) { Get-Content $log -Tail 250 }
-            throw "The packaged UV-Vis server did not reach a ready state."
+            throw "The packaged UV-Vis server did not reach a ready state with project modules loaded."
           }
 
       - name: Install Inno Setup
@@ -178,7 +184,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-Windows-Installer
+          name: UVVis-Spectrum-Studio-Windows-Installer-v1.0.2
           path: |
             installer_output/UVVis_Spectrum_Studio_Setup.exe
             build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer
@@ -191,10 +197,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v1.0.1"
+          $tag = "v1.0.2"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v1.0.1" --notes "Windows desktop build with corrected frozen-server startup, packaged startup self-test, diagnostics, and Authenticode signing. If the fallback self-signed certificate is used, Windows may still show a trust warning on computers where that certificate is not trusted. A publicly trusted code-signing PFX can be supplied through the WINDOWS_CERTIFICATE_BASE64 and WINDOWS_CERTIFICATE_PASSWORD repository secrets."
+            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v1.0.2" --notes "Windows build fixing missing uvvis_studio analysis/io/export modules. The packaged EXE must pass module-import and live local-server self-tests before this installer is published. Authenticode signing is included; the fallback certificate is self-signed unless trusted PFX repository secrets are configured."
           }
           gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.exe" --clobber
           if (Test-Path "build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer") {
