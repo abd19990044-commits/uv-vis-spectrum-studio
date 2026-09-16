@@ -125,9 +125,9 @@ def packaged_self_test() -> int:
     try:
         if not wait_for_server(port, server, timeout=60.0):
             return 2
-        # Opening a TCP connection proves that the frozen Streamlit server has
-        # initialized and is accepting connections. The full UI is exercised by
-        # Streamlit when the browser/WebView requests the page.
+        marker = os.environ.get("UVVIS_SELF_TEST_MARKER")
+        if marker:
+            Path(marker).write_text(f"ok:{port}\n", encoding="utf-8")
         return 0
     finally:
         stop_process(server)
