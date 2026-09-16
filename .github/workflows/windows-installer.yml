@@ -11,6 +11,8 @@ on:
       - "requirements-desktop.txt"
       - "build_assets/**"
       - "installer/**"
+      - ".streamlit/**"
+      - "tests/**"
       - ".github/workflows/windows-installer.yml"
 
 permissions:
@@ -184,7 +186,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-Windows-Installer-v1.1.0
+          name: UVVis-Spectrum-Studio-Windows-Installer-v1.2.0
           path: |
             installer_output/UVVis_Spectrum_Studio_Setup.exe
             build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer
@@ -197,10 +199,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v1.1.0"
+          $tag = "v1.2.0"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v1.1.0" --notes "Scientific feature release: first/second derivative spectroscopy, selectable-range AUC (signed and absolute), lambda max/min, centroid, FWHM and peak analysis, advanced preprocessing, per-curve line patterns, monochrome publication mode, configurable fonts and high-resolution PNG/SVG/PDF export. The packaged EXE must pass project-module and live local-server self-tests before publication. Authenticode signing is included; the fallback certificate is self-signed unless trusted PFX repository secrets are configured."
+            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v1.2.0" --notes "Advanced spectroscopy release: original through fourth derivatives (0D–4D), zero-crossing analysis, interpolated selected-range AUC, peak labels, S/N estimation, signal extraction at selected wavelengths, multiple smoothing and baseline methods, blank/reference subtraction and spectral arithmetic, absorbance/transmittance conversion, monochrome publication controls, removal of demo and deployment UI, plus high-resolution PNG/SVG/PDF/CSV export. Scientific tests and packaged Windows startup tests must pass before publication. Authenticode signing is included; fallback signing remains self-signed unless trusted PFX secrets are configured."
           }
           gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.exe" --clobber
           if (Test-Path "build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer") {
