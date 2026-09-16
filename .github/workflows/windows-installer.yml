@@ -125,12 +125,14 @@ jobs:
       - name: Run packaged server self-test
         shell: pwsh
         run: |
-          $exe = Resolve-Path "dist/UV-Vis Spectrum Studio/UV-Vis Spectrum Studio.exe"
-          & $exe --uvvis-self-test
-          if ($LASTEXITCODE -ne 0) {
+          $exe = (Resolve-Path "dist/UV-Vis Spectrum Studio/UV-Vis Spectrum Studio.exe").Path
+          $process = Start-Process -FilePath $exe -ArgumentList "--uvvis-self-test" -PassThru -Wait -WindowStyle Hidden
+          $exitCode = $process.ExitCode
+          Write-Host "Packaged server self-test exit code: $exitCode"
+          if ($exitCode -ne 0) {
             $log = Join-Path $env:LOCALAPPDATA "UVVisSpectrumStudio\logs\startup.log"
             if (Test-Path $log) { Get-Content $log -Tail 200 }
-            throw "The packaged UV-Vis server failed its startup self-test with exit code $LASTEXITCODE."
+            throw "The packaged UV-Vis server failed its startup self-test with exit code $exitCode."
           }
 
       - name: Install Inno Setup
