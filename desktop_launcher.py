@@ -18,6 +18,7 @@ from streamlit.web import bootstrap
 
 APP_NAME = "UVVisSpectrumStudio"
 SERVER_FLAG = "--uvvis-server"
+SELF_TEST_FLAG = "--uvvis-self-test"
 
 
 def resource_path(relative: str) -> str:
@@ -118,6 +119,21 @@ def stop_process(process: subprocess.Popen[bytes]) -> None:
         process.kill()
 
 
+def packaged_self_test() -> int:
+    port = find_free_port()
+    server, log_file = start_server_process(port)
+    try:
+        if not wait_for_server(port, server, timeout=60.0):
+            return 2
+        # Opening a TCP connection proves that the frozen Streamlit server has
+        # initialized and is accepting connections. The full UI is exercised by
+        # Streamlit when the browser/WebView requests the page.
+        return 0
+    finally:
+        stop_process(server)
+        log_file.close()
+
+
 def main() -> None:
     port = find_free_port()
     server, log_file = start_server_process(port)
@@ -161,6 +177,8 @@ def entrypoint() -> None:
     if len(sys.argv) >= 3 and sys.argv[1] == SERVER_FLAG:
         run_streamlit(int(sys.argv[2]))
         return
+    if len(sys.argv) >= 2 and sys.argv[1] == SELF_TEST_FLAG:
+        raise SystemExit(packaged_self_test())
     main()
 
 
