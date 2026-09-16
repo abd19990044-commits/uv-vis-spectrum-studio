@@ -18,10 +18,15 @@ import streamlit  # noqa: F401
 import uvvis_studio  # noqa: F401
 import uvvis_studio.analysis  # noqa: F401
 import uvvis_studio.chemometrics  # noqa: F401
+import uvvis_studio.chemometrics_advanced  # noqa: F401
 import uvvis_studio.export  # noqa: F401
 import uvvis_studio.io  # noqa: F401
+import uvvis_studio.multicomponent  # noqa: F401
+import uvvis_studio.peakfit  # noqa: F401
+import uvvis_studio.project  # noqa: F401
 import uvvis_studio.quantitation  # noqa: F401
 import uvvis_studio.transforms  # noqa: F401
+import uvvis_studio.validation  # noqa: F401
 
 APP_NAME = "UVVisSpectrumStudio"
 SERVER_FLAG = "--uvvis-server"
@@ -85,7 +90,7 @@ def run_streamlit(port: int) -> None:
         print(f"Executable: {sys.executable}")
         print(f"App path: {app_path}")
         print(f"Requested port: {port}")
-        print("Scientific modules imported: analysis, chemometrics, quantitation, transforms, io, export")
+        print("Scientific modules imported: analysis, chemometrics, advanced chemometrics, validation, multicomponent, peakfit, project, quantitation, transforms, io, export")
         from streamlit.web import cli as stcli
         sys.argv = [
             "streamlit", "run", app_path,
@@ -130,10 +135,15 @@ def stop_process(process: subprocess.Popen[bytes]) -> None:
 def packaged_self_test() -> int:
     import uvvis_studio.analysis  # noqa: F401
     import uvvis_studio.chemometrics  # noqa: F401
+    import uvvis_studio.chemometrics_advanced  # noqa: F401
     import uvvis_studio.export  # noqa: F401
     import uvvis_studio.io  # noqa: F401
+    import uvvis_studio.multicomponent  # noqa: F401
+    import uvvis_studio.peakfit  # noqa: F401
+    import uvvis_studio.project  # noqa: F401
     import uvvis_studio.quantitation  # noqa: F401
     import uvvis_studio.transforms  # noqa: F401
+    import uvvis_studio.validation  # noqa: F401
     port = find_free_port()
     server, log_file = start_server_process(port)
     try:
@@ -141,7 +151,7 @@ def packaged_self_test() -> int:
             return 2
         marker = os.environ.get("UVVIS_SELF_TEST_MARKER")
         if marker:
-            Path(marker).write_text(f"ok:{port}:modules\n", encoding="utf-8")
+            Path(marker).write_text(f"ok:{port}:modules-v3\n", encoding="utf-8")
         return 0
     finally:
         stop_process(server)
