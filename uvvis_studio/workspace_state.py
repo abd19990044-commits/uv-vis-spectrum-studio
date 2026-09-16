@@ -80,9 +80,16 @@ def restore_project_to_session(session_state, project: dict) -> None:
 
 
 def clear_project_session(session_state) -> None:
+    """Close an active project without forcing the file uploader value.
+
+    The current project hash is intentionally retained. This prevents the same
+    still-selected uploader file from being immediately re-opened on the next
+    Streamlit rerun. A different project file receives a different hash and
+    loads normally.
+    """
     session_state.pop("_project_spectra", None)
     session_state.pop("_project_notes", None)
-    session_state.pop("_loaded_project_token", None)
+    session_state.pop("_project_loaded_message", None)
     for key in list(session_state.keys()):
         if (
             key in PROJECT_WIDGET_KEYS
@@ -91,3 +98,9 @@ def clear_project_session(session_state) -> None:
             or key.startswith("project_style_")
         ):
             session_state.pop(key, None)
+
+    # Stop execution before main_app attempts to mutate the file_uploader key.
+    # Calling rerun here is safe because this function is used by the UI close
+    # action; importing this module for scientific tests does not trigger it.
+    import streamlit as st
+    st.rerun()
