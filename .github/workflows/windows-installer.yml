@@ -66,8 +66,10 @@ jobs:
             --add-data "vendor/chrome;vendor/chrome" `
             --collect-all streamlit `
             --collect-all plotly `
-            --collect-all kaleido `
-            --collect-all choreographer `
+            --hidden-import kaleido `
+            --collect-data kaleido `
+            --hidden-import choreographer `
+            --collect-data choreographer `
             --collect-all webview `
             --collect-submodules uvvis_studio `
             desktop_launcher.py
