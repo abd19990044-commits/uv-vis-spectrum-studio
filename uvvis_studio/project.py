@@ -11,6 +11,8 @@ import zipfile
 
 import numpy as np
 
+from . import __version__
+
 PROJECT_VERSION = 3
 PROJECT_FORMAT = "UVVisSpectrumStudioProject"
 _REPRO_PACKAGES = (
@@ -36,8 +38,6 @@ def _finite_xy(x, y) -> tuple[np.ndarray, np.ndarray]:
     order = np.argsort(x)
     x, y = x[order], y[order]
     if np.any(np.diff(x) <= 0):
-        # Project archives should be deterministic. Average duplicate wavelengths
-        # rather than preserving an ambiguous acquisition/export artifact.
         unique, inverse = np.unique(x, return_inverse=True)
         sums = np.bincount(inverse, weights=y)
         counts = np.bincount(inverse)
@@ -58,6 +58,8 @@ def _package_versions() -> dict[str, str]:
 def reproducibility_metadata() -> dict:
     """Capture environment provenance useful for scientific reproducibility."""
     return {
+        "application": "UV-Vis Spectrum Studio",
+        "application_version": __version__,
         "python": platform.python_version(),
         "python_implementation": platform.python_implementation(),
         "platform": platform.platform(),
@@ -65,6 +67,102 @@ def reproducibility_metadata() -> dict:
         "git_commit": os.getenv("UVVIS_GIT_COMMIT") or os.getenv("GITHUB_SHA") or "unknown",
         "executable": os.path.basename(sys.executable),
     }
+
+
+def processing_audit_from_settings(settings: dict | None) -> list[dict]:
+    """Create a deterministic, human-readable processing trail from workspace settings."""
+    s = dict(settings or {})
+    trail: list[dict] = [{"step": 0, "operation": "raw_data", "parameters": {}}]
+
+    operations = [
+        (
+            "crop",
+            bool(s.get("crop", False)),
+            {"xmin_nm": s.get("xmin"), "xmax_nm": s.get("xmax")},
+        ),
+        (
+            "signal_conversion",
+            s.get("conversion") not in {None, "", "None"},
+            {"mode": s.get("conversion")},
+        ),
+        (
+            "smoothing",
+            s.get("smoothing_method") not in {None, "", "None"},
+            {
+                "method": s.get("smoothing_method"),
+                "window_points": s.get("window"),
+                "polyorder": s.get("poly"),
+                "gaussian_sigma_points": s.get("gaussian_sigma"),
+            },
+        ),
+        (
+            "baseline_correction",
+            s.get("baseline_method") not in {None, "", "None"},
+            {
+                "method": s.get("baseline_method"),
+                "als_lambda": s.get("blam"),
+                "als_p": s.get("bp"),
+                "polynomial_order": s.get("baseline_poly_order"),
+                "edge_fraction": s.get("baseline_edge_fraction"),
+            },
+        ),
+        (
+            "normalization",
+            s.get("norm") not in {None, "", "None"},
+            {"mode": s.get("norm")},
+        ),
+        (
+            "derivative",
+            int(s.get("derivative_order", 0) or 0) > 0,
+            {
+                "order": int(s.get("derivative_order", 0) or 0),
+                "window_points": s.get("window"),
+                "requested_polyorder": s.get("poly"),
+            },
+        ),
+        (
+            "manual_auc",
+            bool(s.get("auc_enabled", False)),
+            {"from_nm": s.get("auc_min"), "to_nm": s.get("auc_max")},
+        ),
+    ]
+
+    step = 1
+    for operation, enabled, parameters in operations:
+        if enabled:
+            clean_parameters = {k: v for k, v in parameters.items() if v is not None}
+            trail.append({"step": step, "operation": operation, "parameters": clean_parameters})
+            step += 1
+
+    trail.append(
+        {
+            "step": step,
+            "operation": "figure_configuration",
+            "parameters": {
+                key: s.get(key)
+                for key in (
+                    "title",
+                    "xtitle",
+                    "ytitle",
+                    "bw_mode",
+                    "bw_auto",
+                    "font_family",
+                    "linewidth",
+                    "fontsize",
+                    "titlesize",
+                    "grid",
+                    "legend",
+                    "legendpos",
+                    "label_peaks",
+                    "peak_prominence_pct",
+                    "peak_distance",
+                    "offset",
+                )
+                if key in s
+            },
+        }
+    )
+    return trail
 
 
 def project_bytes(
@@ -82,15 +180,18 @@ def project_bytes(
     reopening a project recalculates the workspace exactly once rather than
     processing an already processed signal a second time.
     """
+    settings = dict(settings or {})
+    trail = list(audit_trail) if audit_trail is not None else processing_audit_from_settings(settings)
+    created = datetime.now(timezone.utc).isoformat()
     meta = {
         "format": PROJECT_FORMAT,
         "version": PROJECT_VERSION,
-        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "created_utc": created,
         "notes": str(notes),
         "analyst": str(analyst),
         "instrument": str(instrument),
-        "settings": settings or {},
-        "audit_trail": list(audit_trail or []),
+        "settings": settings,
+        "audit_trail": trail,
         "reproducibility": reproducibility_metadata(),
         "spectra": [],
     }
