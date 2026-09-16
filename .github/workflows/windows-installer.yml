@@ -126,13 +126,29 @@ jobs:
         shell: pwsh
         run: |
           $exe = (Resolve-Path "dist/UV-Vis Spectrum Studio/UV-Vis Spectrum Studio.exe").Path
-          $process = Start-Process -FilePath $exe -ArgumentList "--uvvis-self-test" -PassThru -Wait -WindowStyle Hidden
-          $exitCode = $process.ExitCode
-          Write-Host "Packaged server self-test exit code: $exitCode"
-          if ($exitCode -ne 0) {
+          $marker = Join-Path $env:RUNNER_TEMP "uvvis-self-test.ok"
+          Remove-Item $marker -Force -ErrorAction SilentlyContinue
+          $env:UVVIS_SELF_TEST_MARKER = $marker
+          $process = Start-Process -FilePath $exe -ArgumentList "--uvvis-self-test" -PassThru -WindowStyle Hidden
+          $deadline = (Get-Date).AddSeconds(90)
+          $passed = $false
+          while ((Get-Date) -lt $deadline) {
+            if (Test-Path $marker) {
+              $passed = $true
+              Write-Host "Packaged server self-test marker: $(Get-Content $marker -Raw)"
+              break
+            }
+            if ($process.HasExited) {
+              Write-Host "Self-test process exited with code $($process.ExitCode) before writing marker."
+              break
+            }
+            Start-Sleep -Seconds 1
+          }
+          Get-Process -Name "UV-Vis Spectrum Studio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $passed) {
             $log = Join-Path $env:LOCALAPPDATA "UVVisSpectrumStudio\logs\startup.log"
-            if (Test-Path $log) { Get-Content $log -Tail 200 }
-            throw "The packaged UV-Vis server failed its startup self-test with exit code $exitCode."
+            if (Test-Path $log) { Get-Content $log -Tail 250 }
+            throw "The packaged UV-Vis server did not reach a ready state."
           }
 
       - name: Install Inno Setup
