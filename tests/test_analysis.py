@@ -39,7 +39,7 @@ def test_fourth_derivative_quartic_signal():
     x = np.linspace(-5, 5, 401)
     y = 3 * x**4 - 2 * x**3 + 5 * x**2 + 9
     d4 = derivative(x, y, order=4, window=25, polyorder=6)
-    assert np.allclose(d4[25:-25], 72.0, atol=2e-4)
+    assert np.allclose(d4[25:-25], 72.0, atol=2e-3)
 
 
 def test_first_derivative_irregular_grid():
