@@ -15,8 +15,11 @@ on:
       - ".streamlit/**"
       - "README.md"
       - "LICENSE"
+      - "LICENSE-NOTICE.md"
       - "CITATION.cff"
       - ".zenodo.json"
+      - "codemeta.json"
+      - "CHANGELOG.md"
       - "tests/**"
       - ".github/workflows/cross-platform-desktop.yml"
 
@@ -28,8 +31,16 @@ env:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch_label: x86_64
+          - runner: ubuntu-24.04-arm
+            arch_label: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -40,9 +51,15 @@ jobs:
           cache-dependency-path: requirements-desktop.txt
 
       - name: Install system runtime dependencies
+        shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.0-37 xvfb
+          sudo apt-get install -y libgtk-3-0 xvfb
+          if apt-cache show libwebkit2gtk-4.1-0 >/dev/null 2>&1; then
+            sudo apt-get install -y libwebkit2gtk-4.1-0
+          else
+            sudo apt-get install -y libwebkit2gtk-4.0-37
+          fi
 
       - name: Install Python dependencies
         run: |
@@ -88,6 +105,7 @@ jobs:
           PY
 
       - name: Build Linux desktop bundle
+        shell: bash
         run: |
           pyinstaller --noconfirm --clean --onedir \
             --name "UV-Vis Spectrum Studio" \
@@ -120,31 +138,39 @@ jobs:
       - name: Create Linux release bundle
         shell: bash
         run: |
-          ARCH=$(uname -m)
           mkdir -p release staging
           cp -R "dist/UV-Vis Spectrum Studio" staging/
-          cp README.md LICENSE CITATION.cff CHANGELOG.md staging/
-          tar -C staging -czf "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_Linux_${ARCH}.tar.gz" .
-          pip freeze | sort > "release/requirements-lock-Linux-${ARCH}.txt"
-          cat > "release/BUILD-INFO-Linux-${ARCH}.txt" <<EOF
+          cp README.md LICENSE LICENSE-NOTICE.md CITATION.cff CHANGELOG.md staging/
+          tar -C staging -czf "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_Linux_${{ matrix.arch_label }}.tar.gz" .
+          pip freeze | sort > "release/requirements-lock-Linux-${{ matrix.arch_label }}.txt"
+          cat > "release/BUILD-INFO-Linux-${{ matrix.arch_label }}.txt" <<EOF
           UV-Vis Spectrum Studio ${RELEASE_VERSION}
           Git commit: ${GITHUB_SHA}
           Git ref: ${GITHUB_REF}
+          Runner: ${{ matrix.runner }}
           Runner OS: ${RUNNER_OS}
-          Architecture: ${ARCH}
+          Architecture: ${{ matrix.arch_label }}
           Python: $(python --version 2>&1)
           EOF
-          (cd release && sha256sum UVVis_* requirements-lock-* BUILD-INFO-* > SHA256SUMS-Linux.txt)
+          (cd release && sha256sum UVVis_* requirements-lock-* BUILD-INFO-* > "SHA256SUMS-Linux-${{ matrix.arch_label }}.txt")
 
       - uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-Linux-v3.1.0
+          name: UVVis-Spectrum-Studio-Linux-${{ matrix.arch_label }}-v3.1.0
           path: release/*
           retention-days: 30
 
   build-macos:
-    runs-on: macos-14
-    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch_label: x86_64
+          - runner: macos-15
+            arch_label: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
 
@@ -202,9 +228,11 @@ jobs:
           PY
 
       - name: Build macOS application
+        shell: bash
         run: |
           pyinstaller --noconfirm --clean --windowed --onedir \
             --name "UV-Vis Spectrum Studio" \
+            --osx-bundle-identifier "io.github.abd19990044.uvvis-spectrum-studio" \
             --add-data "app.py:." \
             --add-data ".streamlit:.streamlit" \
             --add-data "uvvis_studio:uvvis_studio" \
@@ -238,31 +266,31 @@ jobs:
       - name: Create macOS ZIP and DMG
         shell: bash
         run: |
-          ARCH=$(uname -m)
           mkdir -p release dmg-root
           if [ -d "dist/UV-Vis Spectrum Studio.app" ]; then
-            ditto -c -k --sequesterRsrc --keepParent "dist/UV-Vis Spectrum Studio.app" "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${ARCH}.zip"
+            ditto -c -k --sequesterRsrc --keepParent "dist/UV-Vis Spectrum Studio.app" "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${{ matrix.arch_label }}.zip"
             cp -R "dist/UV-Vis Spectrum Studio.app" dmg-root/
             ln -s /Applications dmg-root/Applications
-            hdiutil create -volname "UV-Vis Spectrum Studio" -srcfolder dmg-root -ov -format UDZO "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${ARCH}.dmg"
+            hdiutil create -volname "UV-Vis Spectrum Studio" -srcfolder dmg-root -ov -format UDZO "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${{ matrix.arch_label }}.dmg"
           else
-            ditto -c -k --sequesterRsrc --keepParent "dist/UV-Vis Spectrum Studio" "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${ARCH}.zip"
+            ditto -c -k --sequesterRsrc --keepParent "dist/UV-Vis Spectrum Studio" "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${{ matrix.arch_label }}.zip"
           fi
-          pip freeze | sort > "release/requirements-lock-macOS-${ARCH}.txt"
-          cat > "release/BUILD-INFO-macOS-${ARCH}.txt" <<EOF
+          pip freeze | sort > "release/requirements-lock-macOS-${{ matrix.arch_label }}.txt"
+          cat > "release/BUILD-INFO-macOS-${{ matrix.arch_label }}.txt" <<EOF
           UV-Vis Spectrum Studio ${RELEASE_VERSION}
           Git commit: ${GITHUB_SHA}
           Git ref: ${GITHUB_REF}
+          Runner: ${{ matrix.runner }}
           Runner OS: ${RUNNER_OS}
-          Architecture: ${ARCH}
+          Architecture: ${{ matrix.arch_label }}
           Python: $(python --version 2>&1)
           Signing/notarization: not configured in this workflow
           EOF
-          (cd release && shasum -a 256 UVVis_* requirements-lock-* BUILD-INFO-* > SHA256SUMS-macOS.txt)
+          (cd release && shasum -a 256 UVVis_* requirements-lock-* BUILD-INFO-* > "SHA256SUMS-macOS-${{ matrix.arch_label }}.txt")
 
       - uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-macOS-v3.1.0
+          name: UVVis-Spectrum-Studio-macOS-${{ matrix.arch_label }}-v3.1.0
           path: release/*
           retention-days: 30
 
