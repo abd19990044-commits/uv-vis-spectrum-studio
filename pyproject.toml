@@ -1,8 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "uvvis-spectrum-studio"
-version = "1.0.0"
-description = "Professional UV-Vis spectroscopy plotting and analysis web app"
+version = "3.1.0"
+description = "Open-source UV-Vis spectroscopy analysis, validation, chemometrics, deconvolution, and reproducible scientific workflows"
+readme = "README.md"
 requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Abdulsalam S. Hasan" }
+]
+keywords = [
+  "UV-Vis spectroscopy",
+  "analytical chemistry",
+  "spectrophotometry",
+  "chemometrics",
+  "method validation",
+  "spectral analysis",
+  "scientific software"
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Chemistry"
+]
+
+[project.urls]
+Homepage = "https://github.com/abd19990044-commits/uv-vis-spectrum-studio"
+Repository = "https://github.com/abd19990044-commits/uv-vis-spectrum-studio"
+Issues = "https://github.com/abd19990044-commits/uv-vis-spectrum-studio/issues"
+
+[tool.setuptools.packages.find]
+include = ["uvvis_studio*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
