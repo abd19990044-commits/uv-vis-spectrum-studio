@@ -1,4 +1,5 @@
 import io
+import zipfile
 
 import numpy as np
 import pandas as pd
@@ -39,8 +40,6 @@ def test_inverse_prediction_interval_contains_exact_unknown():
 def test_multicomponent_conditioning_warning_and_hard_failure():
     stable = simultaneous_equations(1.0, 0.8, 100.0, 20.0, 10.0, 90.0)
     assert stable["conditioning_status"] == "acceptable"
-    # Nearly collinear absorptivity columns: hard limit intentionally lowered in
-    # this test so the numerical guard is deterministic.
     try:
         simultaneous_equations(
             1.0,
@@ -77,6 +76,7 @@ def pytest_approx(value, tol):
     class Approx:
         def __eq__(self, other):
             return abs(float(other) - float(value)) <= tol
+
     return Approx()
 
 
@@ -100,7 +100,7 @@ def test_cp1252_text_file_decodes_without_replacement():
     assert list(df.columns) == ["Wavelength", "Absorbance"]
 
 
-def test_project_contains_reproducibility_and_disallows_pickle_loading():
+def test_project_contains_reproducibility_and_integrity_manifest():
     x = np.array([200.0, 201.0, 202.0])
     y = np.array([0.1, 0.2, 0.3])
     data = project_bytes(
@@ -110,7 +110,31 @@ def test_project_contains_reproducibility_and_disallows_pickle_loading():
         instrument="UV-Vis",
     )
     loaded = load_project(data)
-    assert loaded["metadata"]["version"] >= 3
+    assert loaded["metadata"]["version"] >= 4
     assert "python" in loaded["reproducibility"]
     assert loaded["audit_trail"][0]["action"] == "import"
     assert loaded["analyst"] == "Analyst"
+    assert loaded["integrity"]["verified"] is True
+    assert loaded["integrity"]["algorithm"] == "SHA-256"
+
+
+def test_project_integrity_detects_modified_project_json():
+    x = np.array([200.0, 201.0, 202.0])
+    y = np.array([0.1, 0.2, 0.3])
+    original = project_bytes([{"name": "A", "x": x, "y": y}], notes="original")
+
+    source = zipfile.ZipFile(io.BytesIO(original), "r")
+    altered = io.BytesIO()
+    with source, zipfile.ZipFile(altered, "w", zipfile.ZIP_DEFLATED) as target:
+        for name in source.namelist():
+            payload = source.read(name)
+            if name == "project.json":
+                payload = payload.replace(b'"notes": "original"', b'"notes": "altered!"')
+            target.writestr(name, payload)
+
+    try:
+        load_project(altered.getvalue())
+    except ValueError as exc:
+        assert "Integrity check failed" in str(exc)
+    else:
+        raise AssertionError("Tampered project archive should have failed SHA-256 integrity verification")
