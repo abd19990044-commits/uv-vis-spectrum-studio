@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    tags:
+      - "v*"
     paths:
       - "app.py"
       - "desktop_launcher.py"
@@ -49,6 +51,10 @@ jobs:
           $version = python -c "import uvvis_studio; print(uvvis_studio.__version__)"
           $version = $version.Trim()
           if ($version -ne "3.1.0") { throw "Package version mismatch: expected 3.1.0, got $version" }
+          if ("${{ github.ref }}" -like "refs/tags/v*") {
+            $tagVersion = "${{ github.ref_name }}".TrimStart('v')
+            if ($tagVersion -ne $version) { throw "Tag/package mismatch: tag $tagVersion, package $version" }
+          }
 
       - name: Embed build provenance and freeze environment
         shell: pwsh
@@ -207,16 +213,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Publish installer to GitHub Release
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+      - name: Publish installer to tagged GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v3.1.0"
+          $tag = "${{ github.ref_name }}"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio v3.1.0" --notes "Scientific-production hardening release. Adds spectroscopy quality diagnostics for high absorbance and high-order derivatives; Mandel linear-vs-quadratic calibration testing and inverse-prediction confidence intervals; multicomponent conditioning safeguards; fold-safe chemometric preprocessing and nested PLS validation; improved instrument-text decoding and duplicate-wavelength handling; tamper-evident .uvvisproj SHA-256 manifests with environment/audit provenance; dependency freeze and installer SHA-256 artifacts. Scientific tests and packaged Windows self-test must pass before publication."
+            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio $tag" --notes "Scientific-production hardening release. See README and release assets for platform builds, checksums, environment locks, validation safeguards and reproducibility metadata."
           }
           gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.exe" --clobber
           gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.sha256" --clobber
