@@ -9,6 +9,7 @@ from uvvis_studio.chemometrics import (
     preprocess_matrix,
     regression_analysis,
 )
+from uvvis_studio.chemometrics_advanced import nested_pls_evaluation
 
 
 def synthetic_spectra(n=24, p=80):
@@ -75,6 +76,24 @@ def test_pls_regression_cv_with_preprocessing_pipeline():
     assert isinstance(r.model, Pipeline)
     assert "spectral_preprocess" in r.model.named_steps
     assert r.r2_cv > 0.9
+
+
+def test_nested_pls_selection_is_outer_fold_safe():
+    _, X, y = synthetic_spectra(n=30, p=60)
+    result = nested_pls_evaluation(
+        X,
+        y,
+        max_components=6,
+        outer_folds=5,
+        inner_folds=4,
+        random_state=7,
+    )
+    assert result["predicted"].shape == y.shape
+    assert np.isfinite(result["predicted"]).all()
+    assert np.isfinite(result["rmsep_nested"])
+    assert result["q2_nested"] > 0.9
+    assert len(result["selected_components"]) == 5
+    assert all(1 <= value <= 6 for value in result["selected_components"])
 
 
 def test_pls_vip_shape():
