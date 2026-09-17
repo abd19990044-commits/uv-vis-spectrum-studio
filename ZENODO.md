@@ -1,6 +1,16 @@
 # Zenodo archival guide
 
-UV-Vis Spectrum Studio is prepared for future software archiving through Zenodo.
+UV-Vis Spectrum Studio is prepared for future software archiving through the GitHub–Zenodo integration.
+
+## Metadata files and precedence
+
+The repository contains both:
+
+- `.zenodo.json` — Zenodo-specific release metadata;
+- `CITATION.cff` — portable citation metadata used by GitHub and citation tooling;
+- `codemeta.json` — interoperable software metadata for indexing and research-software tooling.
+
+When both `.zenodo.json` and `CITATION.cff` are present, Zenodo currently uses `.zenodo.json` for GitHub release archiving. `CITATION.cff` is intentionally retained because GitHub uses it for **Cite this repository** and it remains useful to other tools.
 
 ## Before the first DOI release
 
@@ -10,43 +20,72 @@ UV-Vis Spectrum Studio is prepared for future software archiving through Zenodo.
    - `pyproject.toml`
    - `CITATION.cff`
    - `.zenodo.json`
-   - platform packaging configuration.
-3. Ensure CI passes on the supported Python versions.
-4. Ensure Windows, Linux, macOS, and Python-distribution workflows complete successfully for the release commit/tag.
-5. Review `LICENSE`, `LICENSE-NOTICE.md`, `README.md`, `CHANGELOG.md`, `CITATION.cff`, and `.zenodo.json`.
-6. Do not insert a fabricated DOI. Add the DOI only after Zenodo assigns it.
+   - `codemeta.json`
+   - Windows and cross-platform packaging workflows/configuration.
+3. Confirm the release date and changelog entry.
+4. Ensure CI passes on the supported Python versions.
+5. Ensure the release builds complete for all intended targets:
+   - Windows x64;
+   - Linux x86_64;
+   - Linux ARM64;
+   - macOS Intel x86_64;
+   - macOS Apple Silicon ARM64;
+   - Python wheel and source distribution.
+6. Review `LICENSE`, `LICENSE-NOTICE.md`, `README.md`, `CHANGELOG.md`, `CITATION.cff`, `.zenodo.json`, and `codemeta.json`.
+7. Verify SHA-256 files and build provenance emitted by CI.
+8. Do **not** insert a fabricated or anticipated DOI. Add the DOI only after Zenodo assigns it.
 
-## GitHub → Zenodo
+## GitHub → Zenodo procedure
 
-1. Sign in to Zenodo using the account that controls the GitHub repository.
-2. Enable the repository in Zenodo's GitHub integration.
+1. Sign in to Zenodo and connect the GitHub account that controls this repository.
+2. In Zenodo's GitHub integration, synchronize the repository list and enable `uv-vis-spectrum-studio`.
 3. Create an immutable Git tag such as `v3.1.0` from the verified release commit.
-4. Create/publish the corresponding GitHub Release.
-5. Zenodo should archive the release and assign a version DOI. Zenodo also provides a concept DOI for the software record as a whole.
-6. Check the Zenodo draft/record carefully before relying on it for citation:
-   - title,
-   - author name,
-   - software version,
-   - publication date,
-   - MIT license,
-   - description,
-   - keywords,
-   - linked GitHub repository.
-7. After the DOI exists, add the Zenodo DOI badge and DOI identifier to the next repository metadata update. Do not rewrite an already immutable tagged release merely to insert its own DOI.
+4. Publish the corresponding GitHub Release.
+5. Wait for Zenodo to ingest and archive the release.
+6. Inspect the resulting Zenodo record before using it in publications. Verify:
+   - title;
+   - creator and affiliation;
+   - software version;
+   - publication date;
+   - MIT license;
+   - description;
+   - keywords;
+   - linked repository;
+   - release files.
+7. After Zenodo assigns the DOI, update the **next development revision** of `CITATION.cff`/README with the DOI if desired. Do not rewrite an already immutable tagged release only to make it refer to its own DOI.
+8. For papers, cite the exact version DOI used in the analysis rather than only the repository URL whenever possible.
 
 ## Release assets
 
-GitHub Actions creates platform-specific release artifacts where supported:
+GitHub Actions are configured to create architecture-specific assets from the same tested scientific core:
 
-- Windows x64 Inno Setup installer, checksum, environment lock, and signing certificate when the self-signed fallback is used.
-- Linux x86_64 portable `tar.gz`, SHA-256 file, environment lock, and build information.
-- macOS Apple Silicon application `zip` and `dmg` when packaging succeeds, SHA-256 file, environment lock, and build information.
-- Python source distribution (`sdist`) and wheel with SHA-256 checksums for source-based installation across supported Python platforms.
+- **Windows x64** — Inno Setup installer, SHA-256 checksum, environment lock snapshot, build information, and code-signing material where applicable.
+- **Linux x86_64** — portable `tar.gz`, SHA-256 manifest, environment lock, and build information.
+- **Linux ARM64** — portable `tar.gz`, SHA-256 manifest, environment lock, and build information.
+- **macOS Intel x86_64** — `.app` packaged in ZIP plus DMG, checksums, environment lock, and build information.
+- **macOS Apple Silicon ARM64** — `.app` packaged in ZIP plus DMG, checksums, environment lock, and build information.
+- **Python** — wheel and source distribution with checksums for source-based installation where dependencies are available.
 
-Binary architecture support must be described exactly as built. A source distribution is not evidence that every binary dependency is available on every CPU architecture.
+Binary architecture support must be described exactly as built and tested. A source distribution is not evidence that every third-party binary dependency exists for every operating system/CPU pair.
+
+## License policy
+
+The project uses the standard **MIT License**. The canonical `LICENSE` text is intentionally not customized. Scientific-use, third-party dependency, validation, and regulatory caveats belong in `LICENSE-NOTICE.md` and documentation rather than being inserted into the MIT terms. This preserves unambiguous license detection by Zenodo, GitHub, SPDX tooling, package registries, and institutional scanners.
 
 ## Scientific release policy
 
-A software DOI records a specific software release; it does not certify analytical-method validation, regulatory compliance, or fitness for a particular laboratory procedure. Publications should report both the software version/DOI and the analytical validation relevant to the study.
+A software DOI records and identifies a specific software release; it does not certify analytical-method validation, instrument qualification, regulatory compliance, or fitness for a particular laboratory procedure.
 
-For reproducibility, archive the exact `.uvvisproj` project, source data (when licensing and confidentiality permit), processing settings, and relevant instrument/method metadata alongside the publication or in an appropriate research-data repository.
+For reproducibility, publications should report the software version/DOI and, where possible, preserve the corresponding `.uvvisproj`, source spectra, analytical conditions, processing parameters, instrument/software export details, and chemometric validation strategy.
+
+## Recommended first archived release checklist
+
+- [ ] all scientific tests pass;
+- [ ] packaged self-tests pass on intended release platforms;
+- [ ] version metadata agree everywhere;
+- [ ] release checksums are present;
+- [ ] changelog is final;
+- [ ] metadata files validate;
+- [ ] release notes describe scientific changes and known limitations;
+- [ ] Zenodo repository integration is enabled;
+- [ ] GitHub tag and Release are created only after the above checks pass.
