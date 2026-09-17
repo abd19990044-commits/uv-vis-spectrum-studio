@@ -1,5 +1,5 @@
 #define MyAppName "UV-Vis Spectrum Studio"
-#define MyAppVersion "3.0.1"
+#define MyAppVersion "3.1.0"
 #define MyAppPublisher "Abdulsalam S. Hasan"
 #define MyAppExeName "UV-Vis Spectrum Studio.exe"
 
