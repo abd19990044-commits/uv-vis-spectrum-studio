@@ -302,10 +302,31 @@ jobs:
         run: |
           mkdir -p release dmg-root
           if [ -d "dist/UV-Vis Spectrum Studio.app" ]; then
-            ditto -c -k --sequesterRsrc --keepParent "dist/UV-Vis Spectrum Studio.app" "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${{ matrix.arch_label }}.zip"
+            ZIP="release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${{ matrix.arch_label }}.zip"
+            DMG="release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${{ matrix.arch_label }}.dmg"
+            TMP_DMG="$RUNNER_TEMP/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_${{ matrix.arch_label }}.dmg"
+            ditto -c -k --sequesterRsrc --keepParent "dist/UV-Vis Spectrum Studio.app" "$ZIP"
             cp -R "dist/UV-Vis Spectrum Studio.app" dmg-root/
             ln -s /Applications dmg-root/Applications
-            hdiutil create -volname "UV-Vis Spectrum Studio" -srcfolder dmg-root -ov -format UDZO "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${{ matrix.arch_label }}.dmg"
+            sync
+            created=false
+            for attempt in 1 2 3 4; do
+              rm -f "$TMP_DMG"
+              echo "DMG creation attempt $attempt/4"
+              if hdiutil create -volname "UV-Vis Spectrum Studio" -srcfolder "$PWD/dmg-root" -ov -format UDZO "$TMP_DMG"; then
+                created=true
+                break
+              fi
+              hdiutil info || true
+              sleep $((attempt * 5))
+            done
+            if [ "$created" != true ] || [ ! -s "$TMP_DMG" ]; then
+              echo "Failed to create a non-empty DMG after four attempts." >&2
+              exit 1
+            fi
+            mv "$TMP_DMG" "$DMG"
+            test -s "$ZIP"
+            test -s "$DMG"
           else
             ditto -c -k --sequesterRsrc --keepParent "dist/UV-Vis Spectrum Studio" "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_macOS_${{ matrix.arch_label }}.zip"
           fi
