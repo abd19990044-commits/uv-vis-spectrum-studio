@@ -6,18 +6,22 @@
       "name": "Hasan, Abdulsalam S."
     }
   ],
-  "description": "UV-Vis Spectrum Studio is an open-source analytical spectroscopy environment for UV-Vis spectral processing, publication-quality plotting, quantitative analysis, analytical-method validation, multicomponent spectrophotometry, peak fitting and deconvolution, Fourier and wavelet analysis, chemometrics, reproducible project files, and cross-platform desktop workflows.",
+  "description": "UV-Vis Spectrum Studio is an open-source, cross-platform scientific environment for UV-Vis spectroscopy. It provides spectral import and cleaning, publication-quality visualization, derivative spectroscopy through fourth order with quality safeguards, quantitative calibration and analytical-method validation, multicomponent spectrophotometry, peak fitting and deconvolution, Fourier and wavelet analysis, chemometrics with fold-safe preprocessing and nested PLS validation, and reproducible tamper-evident project archives. Desktop distributions are produced for Windows, macOS, and Linux from the same tested scientific core.",
   "access_right": "open",
   "license": "MIT",
   "version": "3.1.0",
+  "publication_date": "2026-09-17",
   "keywords": [
     "UV-Vis spectroscopy",
     "analytical chemistry",
     "spectrophotometry",
     "chemometrics",
     "analytical method validation",
-    "spectral analysis",
-    "scientific software"
+    "derivative spectrophotometry",
+    "multicomponent analysis",
+    "peak deconvolution",
+    "scientific software",
+    "reproducible research"
   ],
-  "notes": "Research and analytical-support software. Numerical output should be reviewed by a qualified analyst before use in validated QC procedures or regulatory submissions."
+  "notes": "Research and analytical-support software released under the MIT License. The software is not represented as a validated GMP, GLP, 21 CFR Part 11, or ISO 17025 system by default. Laboratories remain responsible for method validation, software qualification, and data-integrity controls required by their quality system. Release assets include platform-specific builds, checksums, and dependency snapshots where produced by CI."
 }
