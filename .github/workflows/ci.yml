@@ -18,5 +18,11 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt pytest
-      - run: pytest
-      - run: python -m compileall app.py uvvis_studio
+      - name: Check dependency consistency
+        run: pip check
+      - name: Validate release metadata
+        run: python tools/validate_release_metadata.py
+      - name: Run scientific and regression tests
+        run: pytest -q
+      - name: Compile application modules
+        run: python -m compileall app.py desktop_launcher.py uvvis_studio tools/validate_release_metadata.py
