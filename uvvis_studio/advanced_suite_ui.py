@@ -403,7 +403,11 @@ def render_advanced_suite(processed: list[dict]) -> None:
                                 name=f"Peak {comp['peak']}",
                             )
                         )
-                        rows.append({k: v for k, v in comp.items() if k not in {"curve", "parameters"}})
+                        errors = np.asarray(comp.get("parameter_standard_errors", []), dtype=float)
+                        row = {k: v for k, v in comp.items() if k not in {"curve", "parameters", "parameter_standard_errors"}}
+                        row["amplitude_se"] = float(errors[0]) if errors.size > 0 and np.isfinite(errors[0]) else np.nan
+                        row["center_se"] = float(errors[1]) if errors.size > 1 and np.isfinite(errors[1]) else np.nan
+                        rows.append(row)
                     fig.update_layout(
                         template="plotly_white",
                         xaxis_title="Wavelength (nm)",
@@ -411,8 +415,32 @@ def render_advanced_suite(processed: list[dict]) -> None:
                         title=f"{shape} deconvolution · R²={result['r2']:.6f}",
                     )
                     st.plotly_chart(fig, width="stretch")
-                    st.metric("RMSE", f"{result['rmse']:.6g}")
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("RMSE", f"{result['rmse']:.6g}")
+                    m2.metric("R²", f"{result['r2']:.8f}")
+                    condition = float(result.get("covariance_condition_number", np.nan))
+                    m3.metric("Covariance condition", f"{condition:.5g}" if np.isfinite(condition) else "∞")
+                    for warning in result.get("warnings", []):
+                        st.warning(warning)
+                    st.caption(
+                        "Parameter standard errors are local nonlinear least-squares covariance estimates. "
+                        "They can be unreliable when peaks overlap strongly, the covariance is ill-conditioned, "
+                        "the noise model is inappropriate, or the selected peak model is misspecified."
+                    )
                     _stretch_dataframe(pd.DataFrame(rows), hide_index=True)
+
+                    residual_fig = go.Figure()
+                    residual_fig.add_trace(
+                        go.Scatter(x=result["x"], y=result["residual"], mode="lines", name="Residual")
+                    )
+                    residual_fig.add_hline(y=0.0, line_dash="dash")
+                    residual_fig.update_layout(
+                        template="plotly_white",
+                        xaxis_title="Wavelength (nm)",
+                        yaxis_title="Observed − fitted",
+                        title="Peak-fit residual diagnostic",
+                    )
+                    st.plotly_chart(residual_fig, width="stretch")
                 except Exception as exc:
                     st.error(str(exc))
 
@@ -420,12 +448,18 @@ def render_advanced_suite(processed: list[dict]) -> None:
         st.markdown("#### Unified project workflow")
         st.info(
             "Open a project from the Project panel at the top of the left sidebar. Save the complete reproducible "
-            "project from Project & export. Project format v3 stores reproducibility metadata and can store audit-trail metadata."
+            "project from Project & export. Project format v4 stores reproducibility metadata, processing audit "
+            "information, build provenance and SHA-256 member-integrity checks."
+        )
+        st.caption(
+            "The SHA-256 manifest detects corruption or modification when the manifest is not also recomputed; "
+            "it is an integrity checksum mechanism, not an authenticated electronic signature or regulated audit trail."
         )
         upload = st.file_uploader(
             "Inspect a project without replacing the current workspace",
             type=["uvvisproj", "zip"],
             key="adv_project_inspect",
+            help=".uvvisproj is the current format; ZIP is accepted for legacy project compatibility.",
         )
         if upload is not None:
             try:
@@ -433,12 +467,26 @@ def render_advanced_suite(processed: list[dict]) -> None:
                 st.success(
                     f"Project format v{project['metadata'].get('version', 1)} · {len(project['spectra'])} spectra"
                 )
+                integrity = project.get("integrity", {})
+                if integrity.get("verified"):
+                    st.success(
+                        f"Integrity verified with {integrity.get('algorithm', 'SHA-256')} "
+                        f"for {integrity.get('members', 0)} archived members."
+                    )
+                else:
+                    st.warning(
+                        "This legacy project has no verified v4 integrity manifest. "
+                        f"Reason: {integrity.get('reason', 'not available')}."
+                    )
+                meta_cols = st.columns(2)
+                meta_cols[0].write(f"**Analyst:** {project.get('analyst') or 'Not recorded'}")
+                meta_cols[1].write(f"**Instrument:** {project.get('instrument') or 'Not recorded'}")
                 st.write(project["notes"] or "No project notes.")
                 if project.get("reproducibility"):
                     st.markdown("##### Reproducibility metadata")
                     st.json(project["reproducibility"])
                 if project.get("audit_trail"):
-                    st.markdown("##### Audit trail")
+                    st.markdown("##### Processing audit information")
                     _stretch_dataframe(pd.DataFrame(project["audit_trail"]), hide_index=True)
                 _stretch_dataframe(
                     pd.DataFrame(
