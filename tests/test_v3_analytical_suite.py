@@ -2,7 +2,7 @@ import numpy as np
 
 from uvvis_studio.validation import linearity_validation, recovery_summary
 from uvvis_studio.multicomponent import simultaneous_equations, dual_wavelength
-from uvvis_studio.peakfit import fit_peaks
+from uvvis_studio.peakfit import fit_peaks, pseudo_voigt
 from uvvis_studio.project import project_bytes, load_project
 from uvvis_studio.chemometrics_advanced import kennard_stone, optimize_pls_components, y_randomization_test
 
@@ -39,6 +39,16 @@ def test_peakfit_gaussian():
     assert r["r2"]>0.999
 
 
+def test_pseudo_voigt_uses_true_common_fwhm():
+    center = 300.0
+    fwhm = 20.0
+    for eta in (0.0, 0.25, 0.5, 0.75, 1.0):
+        y = pseudo_voigt(np.array([center, center-fwhm/2, center+fwhm/2]), 1.0, center, fwhm, eta)
+        assert abs(y[0] - 1.0) < 1e-12
+        assert abs(y[1] - 0.5) < 1e-12
+        assert abs(y[2] - 0.5) < 1e-12
+
+
 def test_project_roundtrip():
     spectra=[{"name":"A","x":np.array([200,201,202.]),"analysis_y":np.array([0.1,0.2,0.3]),"color":"#000000","dash":"solid"}]
     b=project_bytes(spectra,{"mode":"test"},"note")
@@ -47,6 +57,7 @@ def test_project_roundtrip():
     assert p["settings"]["mode"]=="test"
     assert p["spectra"][0]["name"]=="A"
     assert np.allclose(p["spectra"][0]["analysis_y"],[0.1,0.2,0.3])
+    assert p["integrity"]["verified"] is True
 
 
 def test_kennard_stone_split():
