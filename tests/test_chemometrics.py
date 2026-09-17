@@ -63,7 +63,15 @@ def test_pls_regression_cv():
     assert r.rmse_cv < 0.2
 
 
-def test_pls_regression_cv_with_preprocessing_pipeline():
+def test_pls_regression_cv_with_fold_safe_preprocessing_pipeline():
+    """Verify leakage-safe preprocessing without destroying the synthetic analyte signal.
+
+    The synthetic dataset encodes concentration predominantly as multiplicative
+    spectral intensity. MSC is therefore intentionally *not* used in this
+    performance assertion because MSC is designed to remove multiplicative
+    effects and would erase much of this particular ground-truth signal. MSC's
+    fold-safe training-reference behavior is tested independently above.
+    """
     _, X, y = synthetic_spectra()
     r = regression_analysis(
         X,
@@ -71,7 +79,7 @@ def test_pls_regression_cv_with_preprocessing_pipeline():
         "PLS",
         n_components=3,
         cv_folds=5,
-        preprocessing={"use_msc": True, "mean_center": True},
+        preprocessing={"mean_center": True, "autoscale": True},
     )
     assert isinstance(r.model, Pipeline)
     assert "spectral_preprocess" in r.model.named_steps
