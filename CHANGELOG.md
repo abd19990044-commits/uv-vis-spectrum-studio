@@ -15,8 +15,11 @@ The project follows semantic versioning for public releases where practical.
 - Added absorptivity-matrix condition-number safeguards for simultaneous-equation analysis.
 - Added fold-safe supervised preprocessing to reduce chemometric cross-validation leakage.
 - Added nested PLS cross-validation for less biased latent-variable model-selection assessment.
+- Added weighted linear calibration with 1/x, 1/x², 1/y, 1/y², and custom weights.
+- Added Breusch–Pagan and residual diagnostics for heteroscedasticity assessment; weighting remains an analyst-selected model choice rather than an automatic decision.
 - Corrected pseudo-Voigt semantics to use a common FWHM parameterization.
 - Added peak-fit covariance/parameter-identifiability diagnostics.
+- Added `REFERENCES.md` documenting primary scientific references for major numerical and chemometric algorithms and methodological guidance.
 
 ### Reproducibility and integrity
 
@@ -32,8 +35,8 @@ The project follows semantic versioning for public releases where practical.
 ### Distribution
 
 - Windows installer and portable desktop build.
-- macOS desktop application archives.
-- Linux portable desktop bundle.
+- macOS Intel and Apple Silicon desktop application archives and DMG images.
+- Linux x86_64 and ARM64 portable desktop bundles.
 - Standard Python source distribution and wheel for source-based installation.
 - Added Zenodo/CITATION metadata for future DOI archiving.
 
