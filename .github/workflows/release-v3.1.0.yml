@@ -11,7 +11,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: publish-v3.1.0
+  group: publish-v3.1.0-dispatch
   cancel-in-progress: true
 
 jobs:
