@@ -3,8 +3,17 @@ name: Cross-platform Desktop Builds
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags:
       - "v*"
+    paths:
+      - "app.py"
+      - "desktop_launcher.py"
+      - "uvvis_studio/**"
+      - "requirements*.txt"
+      - ".streamlit/**"
+      - "tests/**"
+      - ".github/workflows/cross-platform-desktop.yml"
 
 permissions:
   contents: write
@@ -104,11 +113,7 @@ jobs:
           retention-days: 30
 
   build-macos:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-13, macos-14]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-14
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -138,8 +143,6 @@ jobs:
           print("Chrome:", browser)
           root = Path("vendor/chrome")
           root.mkdir(parents=True, exist_ok=True)
-          # macOS Chrome lives inside an .app bundle. Copy the whole nearest .app
-          # when present; otherwise copy the executable directory.
           app = next((p for p in browser.parents if p.suffix == ".app"), None)
           if app:
               shutil.copytree(app, root / app.name, dirs_exist_ok=True)
@@ -201,7 +204,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-${{ matrix.os }}
+          name: UVVis-Spectrum-Studio-macOS
           path: release/*
           retention-days: 30
 
