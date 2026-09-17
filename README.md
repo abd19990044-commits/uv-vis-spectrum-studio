@@ -1,152 +1,173 @@
 # UV-Vis Spectrum Studio
 
-**UV-Vis Spectrum Studio** is a Windows/Desktop and Streamlit-based analytical spectroscopy suite for UV-Vis data processing, quantitative analysis, publication-quality plotting, transform analysis, analytical-method validation, multicomponent spectrophotometry, peak deconvolution, and chemometrics.
+[![CI](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/ci.yml)
+[![Windows build](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/windows-installer.yml/badge.svg)](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/windows-installer.yml)
+[![Cross-platform builds](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/cross-platform-desktop.yml/badge.svg)](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/cross-platform-desktop.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-The goal is to provide analytical chemists and spectroscopy researchers with one reproducible workspace for common tasks that would otherwise require combinations of Excel, Origin, separate chemometric software, and custom scripts.
+**UV-Vis Spectrum Studio** is an open-source analytical spectroscopy environment for UV-Vis data processing, publication-quality visualization, quantitative analysis, analytical-method validation, multicomponent spectrophotometry, peak fitting and deconvolution, Fourier/wavelet analysis, chemometrics, and reproducible scientific project files.
 
-## Highlights in v3.0
+The project is designed for analytical chemists, spectroscopy researchers, students, method-development laboratories, and scientists who would otherwise combine spreadsheets, Origin-like plotting tools, custom scripts, and separate chemometric software.
 
-Version 3.0 adds a new advanced analytical layer on top of the existing spectroscopy suite:
+**Current software version: v3.1.0**
 
-- Analytical method validation with linearity statistics, 95% confidence intervals, Sy/x, LOD and LOQ.
-- Lack-of-fit testing when replicated calibration levels are available.
+> UV-Vis Spectrum Studio is research and analytical-support software. It is not represented as a validated GMP/GLP/21 CFR Part 11/ISO 17025 system by default. Laboratories using it in regulated workflows remain responsible for software and method validation within their quality system.
+
+---
+
+## Why this project exists
+
+A UV-Vis workflow commonly moves through several disconnected programs: instrument export, spreadsheet cleaning, plotting, derivative calculation, calibration, statistical validation, multicomponent equations, chemometrics, and figure preparation. UV-Vis Spectrum Studio brings these operations into one reproducible workspace while keeping the raw spectrum separate from user-selected processing steps.
+
+Processing is **not silently enabled**. Smoothing, baseline correction, normalization, derivatives, variable selection, and other transformations are explicitly selected by the analyst.
+
+---
+
+## v3.1 scientific hardening
+
+Version 3.1 focuses on numerical defensibility, reproducibility, and production packaging.
+
+### Analytical validation
+
+- Linear calibration with slope, intercept, R² and Sy/x.
+- Slope/intercept standard errors and 95% confidence intervals.
+- LOD = 3.3σ/|S| and LOQ = 10σ/|S|.
+- Manual or regression-derived σ.
+- Residual plots and tabulated residuals.
+- Lack-of-fit ANOVA when replicated calibration levels are available.
+- **Mandel fitting test** for linear-versus-quadratic model comparison.
+- Approximate confidence intervals for inverse prediction of an unknown.
 - Precision, SD, RSD, recovery and bias summaries.
-- Multicomponent UV-Vis analysis using simultaneous equations, absorbance-ratio/Q-analysis and dual-wavelength calculations.
-- Ratio-spectrum workflows including raw ratio, mean-centering, first derivative and second derivative ratio spectra.
-- Peak fitting and deconvolution using Gaussian, Lorentzian, Voigt and pseudo-Voigt functions.
-- Portable `.uvvisproj` project files that package spectra, settings and project notes.
-- Advanced chemometric validation with Kennard-Stone and SPXY sample splitting.
-- PLS latent-component optimization by RMSECV/Q².
-- Y-randomization / permutation testing.
-- VIP-threshold wavelength selection.
-- Interval PLS (iPLS) wavelength-region screening.
-- Expanded packaged self-tests so v3 scientific modules must import successfully before a Windows installer is published.
 
-## Core spectroscopy
+### Spectroscopy quality control
 
-- Import Excel, CSV, TXT, DAT, ASC and TSV spectra.
-- Automatic wavelength-column detection using numeric data beginning around 200 nm or higher.
-- Overlay multiple spectra.
-- Editable name, color and line style for every curve.
-- All curves are **Solid** by default; styles change only when selected by the user.
-- Black-and-white publication mode with optional automatic line-pattern assignment.
-- Interactive cursor, hover, zoom, pan and spike guides.
-- Manual X/Y axis titles, ranges, figure dimensions, fonts, line widths, legends and grids.
-- Vertical offsets.
+- High-absorbance diagnostics with caution flags above configurable analytical ranges.
+- Negative-absorbance diagnostics for blank/reference problems.
+- Wavelength-spacing diagnostics.
+- High-order derivative quality diagnostics.
+- Explicit fourth-derivative safeguards for Savitzky-Golay polynomial/window compatibility.
+- Optional FWHM-aware reporting of points per band and smoothing-window/FWHM ratio.
+
+High-order derivative warnings are diagnostic rather than universal rejection rules because acceptable wavelength interval, bandwidth, stray light, S/N and smoothing depend on the instrument and validated analytical procedure.
+
+### Multicomponent safeguards
+
+- Two-component simultaneous-equation analysis.
+- Matrix **condition number** reporting.
+- Warning/rejection of severely ill-conditioned absorptivity systems.
+- Q-analysis with physically implausible fraction diagnostics.
+- Dual-wavelength calculations.
+- Ratio, mean-centered ratio and derivative-ratio workflows.
+
+### Peak fitting
+
+- Gaussian.
+- Lorentzian.
+- Voigt using the Faddeeva function.
+- Pseudo-Voigt with a common-FWHM parameterization.
+- Multiple overlapping components.
+- Polynomial baseline orders 0–3.
+- Peak center, amplitude, FWHM and area.
+- RMSE and R².
+- Parameter covariance diagnostics and uncertainty warnings where available.
+
+### Chemometric validation
+
+- PCA, ICA and NMF/MCR-like decomposition.
+- PLS, PCR and classical/machine-learning regressors.
+- Classification and clustering.
+- Kennard-Stone and SPXY splitting.
+- PLS latent-variable screening.
+- **Nested PLS cross-validation** for less biased model-selection assessment.
+- Y-randomization/permutation testing.
+- VIP wavelength screening.
+- Interval PLS (iPLS).
+- Fold-safe supervised preprocessing so MSC references, centering and scaling are fitted from each training fold rather than from the entire dataset.
+
+Variable selection performed on all samples can still bias performance. For confirmatory work, selection and hyperparameter tuning should occur inside nested validation or be finalized before evaluation on a locked independent test set.
+
+---
+
+## Core UV-Vis processing
+
+- Excel, CSV, TXT, DAT, ASC and TSV import.
+- UTF-8, CP1252, Windows-1256 and Latin-1 text handling.
+- Automatic wavelength-column detection.
+- Duplicate wavelength handling by deterministic averaging.
+- Multiple overlaid spectra.
+- Per-curve names, colors and line styles.
+- Solid lines by default.
+- Publication black-and-white mode.
+- Manual X/Y axis titles and ranges.
 - Absorbance ↔ %Transmittance conversion.
-- Blank/reference subtraction and spectral difference, ratio and addition.
-
-## Spectral processing
-
-Processing is **never enabled automatically**. The user explicitly chooses every transformation.
-
-- Savitzky-Golay smoothing.
-- Moving-average smoothing.
-- Gaussian smoothing.
-- ALS baseline correction.
-- Linear-endpoint baseline correction.
-- Polynomial-edge baseline correction.
-- Max, Min-Max and area normalization.
-- Derivative spectroscopy from **0D through 4D**.
-- Zero-crossing analysis.
-- Peak detection and annotations.
+- Spectral difference, ratio, addition and reference subtraction.
+- Savitzky-Golay, moving-average and Gaussian smoothing.
+- ALS, endpoint-linear and polynomial-edge baselines.
+- Max, min-max and area normalization.
+- Derivative spectroscopy from 0D through 4D.
+- Zero crossings.
 - λmax / λmin.
 - FWHM.
 - Spectral centroid.
-- Signal extraction at selected wavelengths.
-- S/N estimation from a user-defined noise region.
+- Peak detection.
+- Signal extraction at a selected wavelength.
+- S/N estimation from a user-defined region.
 
-## Manual area under the curve
+---
 
-The user can enter the integration range directly. The software reports:
+## Area under the curve
 
-- Signed AUC.
-- Absolute AUC.
-- Exact integration limits.
-- Interpolated boundary values when limits fall between measured wavelength points.
-- Optional shaded AUC region.
+Manual wavelength limits are supported. Boundary values are interpolated when the requested limits fall between measured wavelengths.
+
+Outputs include:
+
+- signed AUC,
+- absolute AUC,
+- exact integration limits,
+- optional shaded integration region,
 - CSV export.
+
+---
 
 ## Fourier and wavelet analysis
 
-- FFT power spectrum.
+- FFT amplitude and power spectra.
 - Hann, Hamming and Blackman windows.
 - Optional detrending.
-- Dominant spectral-period estimation.
-- DWT wavelet denoising preview.
-- Soft / hard thresholding.
-- db4, db6, sym4 and coif3 wavelets.
+- Dominant-period estimation.
+- DWT denoising preview.
+- Universal-threshold wavelet denoising.
+- Soft/hard thresholding.
 - Continuous Wavelet Transform (CWT).
 - CWT scalograms.
 
-Wavelet denoising is preview-only unless the user explicitly decides to use the processed result.
+Wavelet denoising is not silently substituted for raw data.
 
-## Quantitative analysis
+---
+
+## Quantitative and stoichiometric tools
 
 ### Beer-Lambert calibration
 
-Direct manual entry is supported without Excel. Outputs include:
-
-- Slope and intercept.
-- R².
-- Sy/x.
-- Predicted responses and residuals.
-- Calibration plot.
-- LOD and LOQ.
-- Molar absorptivity, ε, in L·mol⁻¹·cm⁻¹ when molecular weight, concentration unit and path length are provided.
+- Manual concentration/response entry.
+- Linear regression.
+- LOD/LOQ.
+- Residuals.
+- Molar absorptivity ε when molecular weight, concentration unit and path length are supplied.
 
 Supported concentration units include µg/mL, mg/L, mmol/L and mol/L.
 
-### Advanced analytical-method validation
-
-The v3 validation engine adds:
-
-- Slope and intercept standard errors.
-- 95% confidence intervals.
-- Regression-residual diagnostics.
-- LOD = 3.3σ/S and LOQ = 10σ/S.
-- Manual or regression-based σ.
-- Lack-of-fit test with pure-error partitioning when replicate calibration measurements are supplied.
-- Precision summary: n, mean, SD, RSD, min and max.
-- Recovery and bias summaries.
-- Robustness summary functions in the scientific core.
-
-## Stoichiometric and multicomponent spectrophotometry
-
-Existing direct-entry methods:
+### Direct-entry analytical methods
 
 - Job's method of continuous variations.
-- Mole-ratio method with segmented-regression breakpoint estimation.
-- Standard addition with x-intercept estimation.
+- Mole-ratio method.
+- Standard addition.
 - Interpolated isosbestic-point detection.
+- Simultaneous equations.
+- Absorbance-ratio/Q-analysis.
+- Dual-wavelength spectrophotometry.
 
-v3 multicomponent methods:
-
-- Two-component simultaneous equations.
-- Absorbance-ratio / Q-analysis.
-- Dual-wavelength calculation.
-- Ratio-spectrum calculation from loaded curves.
-- Mean-centered ratio spectra.
-- First- and second-derivative ratio spectra.
-
-## Peak fitting and deconvolution
-
-A dedicated peak-fitting workspace supports:
-
-- Gaussian peaks.
-- Lorentzian peaks.
-- Voigt peaks.
-- Pseudo-Voigt peaks.
-- Multiple overlapping peaks in a single fit.
-- Baseline polynomial orders 0–3.
-- Peak center.
-- Amplitude.
-- FWHM.
-- Integrated peak area.
-- Total fitted curve and component curves.
-- RMSE and R² fit diagnostics.
-
-Initial peak centers are supplied by the analyst so the fitting remains transparent and controllable.
+---
 
 ## Chemometrics
 
@@ -157,21 +178,9 @@ Initial peak centers are supplied by the analyst so the fitting remains transpar
 - SNV.
 - MSC.
 - Linear detrending.
-- Savitzky-Golay first derivative.
-- Savitzky-Golay second derivative.
+- Savitzky-Golay derivatives.
 
-Chemometric preprocessing is never activated automatically.
-
-### Exploratory analysis and decomposition
-
-- PCA scores and loadings.
-- Explained and cumulative variance.
-- Hotelling T².
-- Q residuals.
-- ICA.
-- NMF / MCR-like decomposition.
-
-### Regression / calibration models
+### Regression
 
 - PLS.
 - PCR.
@@ -185,8 +194,6 @@ Chemometric preprocessing is never activated automatically.
 - Extra Trees.
 - Gradient Boosting.
 
-Evaluation includes cross-validation, R²/Q²-style performance, RMSECV, MAECV, observed-vs-predicted plots and residuals.
-
 ### Classification
 
 - LDA.
@@ -199,77 +206,76 @@ Evaluation includes cross-validation, R²/Q²-style performance, RMSECV, MAECV, 
 - Extra Trees.
 - Gradient Boosting.
 
-Outputs include cross-validated accuracy, balanced accuracy and confusion matrices where statistically supportable.
+### Exploratory analysis
 
-### Clustering
-
+- PCA scores/loadings.
+- Explained and cumulative variance.
+- Hotelling T².
+- Q residuals.
+- ICA.
+- NMF/MCR-like decomposition.
 - K-means.
 - Hierarchical Ward clustering.
-- PCA-space cluster visualization.
 
-### Advanced chemometric validation in v3
+---
 
-- **Kennard-Stone** deterministic sample selection.
-- **SPXY** sample selection using combined spectral and response distances.
-- Automatic **PLS component optimization** across user-defined component ranges.
-- RMSECV and Q² comparison versus latent-component count.
-- **Y-randomization / permutation testing** for assessing spurious calibration performance.
-- PLS **VIP threshold** wavelength selection.
-- **Interval PLS (iPLS)** for screening wavelength regions by cross-validated RMSE.
+## Reproducible `.uvvisproj` projects
 
-The application warns when sample size is too small for robust modeling. External validation, avoidance of data leakage and full preprocessing disclosure remain the analyst's responsibility.
+The project format stores raw spectra separately from processing settings so re-opening a project does not accidentally process already processed data a second time.
 
-## Project / session files
+Project metadata can include:
 
-v3 introduces a portable `.uvvisproj` format. A project package can contain:
+- raw spectral arrays,
+- curve names/colors/styles,
+- source file information,
+- source hashes,
+- user notes,
+- analyst and instrument fields,
+- processing settings,
+- processing audit trail,
+- application version,
+- Python version,
+- operating system/platform,
+- key package versions,
+- build/Git commit when embedded during packaging.
 
-- Spectral X/Y arrays.
-- Curve names.
-- Curve colors and line styles.
-- Source metadata.
-- Serializable application settings.
-- User notes.
+The current project format includes SHA-256 integrity information so modified archive members can be detected when the project is reopened. This is a **tamper-evident integrity mechanism**, not a replacement for an authenticated regulatory audit-trail system.
 
-The format is ZIP-based and stores numerical arrays in compressed NumPy form plus project metadata in JSON.
+---
 
-## Publication-quality export
+## Publication export
 
-- PNG at 300, 600, 720, 900 and 1200 DPI.
-- SVG vector export.
-- PDF vector export.
-- Processed CSV export.
-- AUC CSV export.
-- Peak-table CSV export.
+- PNG: 300, 600, 720, 900 and 1200 DPI.
+- SVG.
+- PDF.
+- Processed CSV.
+- AUC CSV.
+- Peak tables.
 - User-defined figure dimensions.
-- Publication fonts including Times New Roman, Arial, Calibri, Cambria and Georgia.
-- Black-and-white figures with solid/dashed/dotted/dash-dot patterns.
+- Publication fonts.
+- Color or black-and-white figures.
+- Direct save to a user-selected folder in desktop builds.
 
-### Direct save to disk
+Kaleido/Chrome is bundled by the release workflows where supported so vector and high-resolution export can operate without a separate browser installation.
 
-The Windows build supports direct saving to a selected folder:
+---
 
-1. Browse to a destination or enter a path manually.
-2. Enter a base filename.
-3. Select PNG, SVG, PDF or processed CSV.
-4. Save directly to disk.
+## Desktop builds
 
-The application reports the final saved path after a successful write.
+The same scientific core is packaged for the major desktop operating systems.
 
-## Windows desktop application
+| Platform | Distribution | Notes |
+|---|---|---|
+| Windows x64 | Inno Setup `.exe` installer | PyInstaller + pywebview; Authenticode signing supported. A self-signed fallback certificate may still trigger SmartScreen warnings. |
+| macOS | `.app` packaged as `.zip` | Built and self-tested on GitHub-hosted macOS. Unsigned/notarization-free development builds may require Gatekeeper approval. |
+| Linux x86_64 | `.tar.gz` desktop bundle | Uses pywebview when a supported WebKit/GTK runtime is present; otherwise the launcher falls back to the local system browser. |
+| Source | Python 3.11+ | Works anywhere the Python dependencies are available. |
 
-The desktop distribution uses:
+Every packaged desktop workflow runs scientific tests before packaging and then executes a **packaged self-test** against the frozen application/server.
 
-- PyInstaller.
-- pywebview.
-- Inno Setup.
-- GitHub Actions.
-- Authenticode signing support.
+Release workflows also generate SHA-256 checksum files and environment lock snapshots.
 
-The packaged application launches as a desktop window while Streamlit runs only on localhost in the background.
-
-Before publication, the Windows workflow runs the scientific tests, builds the frozen application, imports the scientific modules from the packaged executable, starts the packaged local server, builds the installer and signs the output.
-
-Installers are distributed through **GitHub Releases**.
+---
 
 ## Installation from source
 
@@ -277,65 +283,130 @@ Python 3.11 or newer is recommended.
 
 ```bash
 python -m venv .venv
+```
 
-# Windows
+Windows:
+
+```powershell
 .venv\Scripts\activate
-
-# Linux/macOS
-source .venv/bin/activate
-
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-For the full Windows/Desktop dependencies:
+Linux/macOS:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+For desktop packaging dependencies:
 
 ```bash
 pip install -r requirements-desktop.txt
 ```
 
-## Tests
+---
+
+## Testing
 
 ```bash
 pytest -q
+python -m compileall app.py desktop_launcher.py uvvis_studio
 ```
 
-The v3 tests include synthetic checks for analytical validation, LOD/LOQ, recovery, simultaneous-equation analysis, dual-wavelength calculation, peak deconvolution, project-file round-tripping, Kennard-Stone splitting, PLS optimization and Y-randomization.
+The test suite covers spectral calculations, integration, transformations, calibration, method validation, Mandel testing, LOD/LOQ, multicomponent conditioning, fourth-derivative safeguards, project round-trips and integrity checks, chemometric preprocessing, PLS validation, sample splitting, variable screening, peak fitting and Streamlit smoke tests.
 
-## Project structure
+---
+
+## Scientific validation strategy
+
+Software unit tests establish numerical regression protection; they do not constitute analytical-method validation.
+
+Before using results in validated QC or formal regulatory work, a laboratory should independently verify at minimum:
+
+1. instrument-file import with its actual instrument/software exports,
+2. reference calculations against trusted software or hand calculations,
+3. calibration and uncertainty behavior on representative data,
+4. method-specific accuracy, precision, selectivity, robustness and range,
+5. chemometric train/test separation and preprocessing strategy,
+6. installation qualification and the organization's data-integrity requirements.
+
+---
+
+## Repository structure
 
 ```text
-app.py                               Main Streamlit interface
-desktop_launcher.py                  Windows desktop launcher
-uvvis_studio/analysis.py             Spectral processing and metrics
-uvvis_studio/io.py                   File import and wavelength detection
-uvvis_studio/export.py               High-resolution/vector export
-uvvis_studio/transforms.py           FFT and wavelet analysis
-uvvis_studio/quantitation.py         Calibration, stoichiometry, standard addition
-uvvis_studio/validation.py           Analytical-method validation
-uvvis_studio/multicomponent.py       Multicomponent UV-Vis methods
-uvvis_studio/peakfit.py              Peak fitting and deconvolution
-uvvis_studio/project.py              Portable .uvvisproj project format
-uvvis_studio/chemometrics.py         Core multivariate models
-uvvis_studio/chemometrics_advanced.py Advanced validation and variable selection
-uvvis_studio/chemometrics_ui.py      Chemometrics/advanced-suite entry point
-installer/                           Inno Setup configuration
-.github/workflows/                   CI and Windows installer workflows
-tests/                               Scientific regression tests
+app.py                                  Streamlit entry point
+desktop_launcher.py                     Cross-platform desktop launcher
+uvvis_studio/analysis.py                Spectral processing and metrics
+uvvis_studio/io.py                      File import and wavelength detection
+uvvis_studio/export.py                  High-resolution/vector export
+uvvis_studio/transforms.py              FFT and wavelet analysis
+uvvis_studio/quantitation.py            Calibration and direct-entry methods
+uvvis_studio/validation.py              Analytical-method validation
+uvvis_studio/quality.py                 Spectroscopy/derivative quality diagnostics
+uvvis_studio/multicomponent.py          Multicomponent spectrophotometry
+uvvis_studio/peakfit.py                 Peak fitting and deconvolution
+uvvis_studio/project.py                 Reproducible .uvvisproj format
+uvvis_studio/chemometrics.py            Core chemometric models and preprocessing
+uvvis_studio/chemometrics_advanced.py   Advanced validation/variable selection
+uvvis_studio/*_ui.py                    Streamlit presentation layer
+installer/                              Windows Inno Setup configuration
+.github/workflows/ci.yml                Python CI
+.github/workflows/windows-installer.yml Windows production build
+.github/workflows/cross-platform-desktop.yml macOS/Linux builds
+tests/                                  Scientific regression tests
+CITATION.cff                            Citation metadata
+.zenodo.json                            Zenodo GitHub-release metadata
+LICENSE                                 MIT License
+LICENSE-NOTICE.md                       Licensing/scientific-use explanation
 ```
 
-## Scientific-use note
+---
 
-UV-Vis Spectrum Studio is a research and analytical support tool. Numerical output should be reviewed by a qualified analyst before use in publications, validated QC procedures or regulatory submissions. Smoothing, derivatives, baseline correction, wavelength selection, calibration strategy, train/test partitioning and chemometric validation parameters should be reported explicitly in scientific work.
+## Citation
 
-## Planned next additions
+If UV-Vis Spectrum Studio contributes materially to your work, cite the exact release used. GitHub can read `CITATION.cff` through **Cite this repository**.
 
-Potential future modules include PLS-DA, SIMCA, OSC/EMSC, Monte-Carlo CV, SPA/CARS/UVE variable selection, leverage/influence diagnostics, kinetic spectrophotometry, binding/pKa fitting, replicate confidence bands, DOE/robustness designs and automated PDF/DOCX analytical reports.
+After the repository is enabled in Zenodo and a GitHub release is archived, use the Zenodo DOI for the corresponding software version. The DOI is intentionally **not hard-coded before Zenodo assigns it**.
+
+Citation metadata are provided in:
+
+- `CITATION.cff`
+- `.zenodo.json`
+
+---
+
+## Zenodo publication readiness
+
+The repository is prepared for future GitHub → Zenodo archiving.
+
+Recommended release procedure:
+
+1. Connect the GitHub account to Zenodo.
+2. Enable `abd19990044-commits/uv-vis-spectrum-studio` in Zenodo's GitHub integration.
+3. Ensure CI and platform builds pass.
+4. Create a versioned GitHub Release/tag, e.g. `v3.1.0`.
+5. Allow Zenodo to ingest the release.
+6. Verify title, creator, license, version and files in the Zenodo record.
+7. Add the assigned Zenodo DOI badge/citation back to this README in the next commit/release.
+
+Because `.zenodo.json` is present, it is the Zenodo-specific metadata source for GitHub-release archiving; `CITATION.cff` remains useful to GitHub and citation tools.
+
+---
+
+## License
+
+UV-Vis Spectrum Studio is licensed under the **MIT License**. See [`LICENSE`](LICENSE).
+
+The standard MIT text is intentionally left unchanged for unambiguous machine and human recognition. Additional explanation of third-party software and scientific-use responsibilities is available in [`LICENSE-NOTICE.md`](LICENSE-NOTICE.md); that notice does **not** add restrictions to the MIT License.
+
+---
 
 ## Author
 
 **Abdulsalam S. Hasan**
 
-## License
-
-See the `LICENSE` file in this repository.
+Repository: https://github.com/abd19990044-commits/uv-vis-spectrum-studio
