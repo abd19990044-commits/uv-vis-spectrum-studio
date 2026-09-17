@@ -42,6 +42,32 @@ def _candidate_browsers(root: Path) -> list[Path]:
     ]
 
 
+def _system_browser() -> Path | None:
+    """Return a compatible system browser when one is discoverable on PATH.
+
+    This is particularly important for Linux ARM64 builds, for which Kaleido's
+    Chrome-for-Testing downloader does not currently provide the same bundled
+    browser path used by the x86_64 release workflow. It also makes source and
+    distro-package installations more robust without hard-coding one OS path.
+    """
+    executable_names = (
+        "google-chrome",
+        "google-chrome-stable",
+        "chromium",
+        "chromium-browser",
+        "chrome",
+        "msedge",
+        "microsoft-edge",
+    )
+    for name in executable_names:
+        resolved = shutil.which(name)
+        if resolved:
+            path = Path(resolved).resolve()
+            if path.is_file():
+                return path
+    return None
+
+
 def _extract_macos_browser_archive(archive: Path) -> Path | None:
     """Extract the opaque macOS Chrome ZIP outside the PyInstaller bundle.
 
@@ -57,13 +83,13 @@ def _extract_macos_browser_archive(archive: Path) -> Path | None:
     expected_marker = str(archive.stat().st_size)
     needs_extract = not cache_base.exists() or not marker.exists() or marker.read_text(errors="ignore") != expected_marker
     if needs_extract:
-        tmp = Path(tempfile.mkdtemp(prefix="uvvis-browser-", dir=str(cache_base.parent) if cache_base.parent.exists() else None))
+        cache_base.parent.mkdir(parents=True, exist_ok=True)
+        tmp = Path(tempfile.mkdtemp(prefix="uvvis-browser-", dir=str(cache_base.parent)))
         try:
             with zipfile.ZipFile(archive, "r") as zf:
                 zf.extractall(tmp)
             if cache_base.exists():
                 shutil.rmtree(cache_base, ignore_errors=True)
-            cache_base.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(tmp), str(cache_base))
             marker.write_text(expected_marker, encoding="utf-8")
         finally:
@@ -79,29 +105,39 @@ def _extract_macos_browser_archive(archive: Path) -> Path | None:
 
 
 def configure_publication_browser() -> str | None:
-    """Configure Kaleido/Choreographer to use a bundled browser when present.
+    """Configure Kaleido/Choreographer to use an available compatible browser.
 
-    Windows and Linux x86_64 packages can carry an unpacked Chrome-for-Testing
-    directory. macOS carries Chrome as an opaque ZIP to avoid PyInstaller
-    framework-bundle collisions. Linux ARM64 intentionally relies on a locally
-    installed compatible Chromium/Chrome because Chrome-for-Testing does not
-    currently provide a linux-arm64 download through Kaleido.
+    Preference order is an explicit ``BROWSER_PATH``, a browser bundled with the
+    desktop release, the lazily extracted macOS browser archive, then a compatible
+    browser installed on the host and discoverable on ``PATH``.
     """
     existing = os.environ.get("BROWSER_PATH")
-    if existing and Path(existing).is_file():
-        return existing
+    if existing:
+        path = Path(existing).expanduser()
+        if path.is_file():
+            resolved = str(path.resolve())
+            os.environ["BROWSER_PATH"] = resolved
+            return resolved
 
     for root in _runtime_roots():
         for candidate in _candidate_browsers(root):
             if candidate.is_file():
-                os.environ["BROWSER_PATH"] = str(candidate)
-                return str(candidate)
+                resolved = str(candidate.resolve())
+                os.environ["BROWSER_PATH"] = resolved
+                return resolved
 
         archive = root / "vendor" / "chrome" / "chrome-macos.zip"
         browser = _extract_macos_browser_archive(archive)
         if browser is not None:
-            os.environ["BROWSER_PATH"] = str(browser)
-            return str(browser)
+            resolved = str(browser.resolve())
+            os.environ["BROWSER_PATH"] = resolved
+            return resolved
+
+    browser = _system_browser()
+    if browser is not None:
+        resolved = str(browser)
+        os.environ["BROWSER_PATH"] = resolved
+        return resolved
     return None
 
 
@@ -113,8 +149,8 @@ def _to_image(fig: go.Figure, *, fmt: str, width: int, height: int) -> bytes:
         raise RuntimeError(
             "Publication image export requires a compatible Chrome/Chromium browser for Kaleido. "
             "Windows and Linux x86_64 release bundles include one; macOS releases extract their bundled browser "
-            "on first export. On Linux ARM64, install a compatible Chromium/Chrome build and, if auto-detection "
-            "does not find it, set the BROWSER_PATH environment variable to the browser executable."
+            "on first export. On Linux ARM64, install a compatible Chromium/Chrome build and, if it is not on PATH, "
+            "set BROWSER_PATH to the browser executable."
         ) from exc
 
 
