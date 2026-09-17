@@ -1,0 +1,78 @@
+name: Python Distribution
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+    paths:
+      - "pyproject.toml"
+      - "uvvis_studio/**"
+      - "README.md"
+      - "LICENSE"
+      - "CITATION.cff"
+      - ".zenodo.json"
+      - ".github/workflows/python-distribution.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build-python-distribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Verify package and tag version
+        shell: bash
+        run: |
+          PACKAGE_VERSION=$(python -c 'import uvvis_studio; print(uvvis_studio.__version__)')
+          TOML_VERSION=$(python - <<'PY'
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              print(tomllib.load(f)['project']['version'])
+          PY
+          )
+          test "$PACKAGE_VERSION" = "$TOML_VERSION"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            test "${GITHUB_REF_NAME#v}" = "$PACKAGE_VERSION"
+          fi
+
+      - name: Build wheel and source distribution
+        run: python -m build
+
+      - name: Validate distributions
+        run: python -m twine check dist/*
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum *.whl *.tar.gz > SHA256SUMS-Python.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UVVis-Spectrum-Studio-Python-v3.1.0
+          path: dist/*
+          retention-days: 30
+
+      - name: Upload distributions to tagged GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --target "$GITHUB_SHA" --title "UV-Vis Spectrum Studio $GITHUB_REF_NAME" --generate-notes
+          for file in dist/*; do
+            gh release upload "$GITHUB_REF_NAME" "$file" --clobber
+          done
