@@ -11,6 +11,13 @@ on:
       - "desktop_launcher.py"
       - "uvvis_studio/**"
       - "requirements-desktop.txt"
+      - "pyproject.toml"
+      - "README.md"
+      - "LICENSE"
+      - "LICENSE-NOTICE.md"
+      - "CITATION.cff"
+      - ".zenodo.json"
+      - "CHANGELOG.md"
       - "build_assets/**"
       - "installer/**"
       - ".streamlit/**"
@@ -20,10 +27,13 @@ on:
 permissions:
   contents: write
 
+env:
+  RELEASE_VERSION: "3.1.0"
+
 jobs:
   build-windows-installer:
     runs-on: windows-latest
-    timeout-minutes: 50
+    timeout-minutes: 60
     env:
       WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -48,9 +58,10 @@ jobs:
       - name: Verify release version
         shell: pwsh
         run: |
-          $version = python -c "import uvvis_studio; print(uvvis_studio.__version__)"
-          $version = $version.Trim()
-          if ($version -ne "3.1.0") { throw "Package version mismatch: expected 3.1.0, got $version" }
+          $version = (python -c "import uvvis_studio; print(uvvis_studio.__version__)").Trim()
+          $tomlVersion = (python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])").Trim()
+          if ($version -ne $env:RELEASE_VERSION) { throw "Package version mismatch: expected $env:RELEASE_VERSION, got $version" }
+          if ($tomlVersion -ne $version) { throw "pyproject/package mismatch: $tomlVersion vs $version" }
           if ("${{ github.ref }}" -like "refs/tags/v*") {
             $tagVersion = "${{ github.ref_name }}".TrimStart('v')
             if ($tagVersion -ne $version) { throw "Tag/package mismatch: tag $tagVersion, package $version" }
@@ -73,6 +84,7 @@ jobs:
         run: |
           pip install pytest
           pytest -q
+          python -m compileall app.py desktop_launcher.py uvvis_studio
 
       - name: Create application icon
         shell: pwsh
@@ -81,8 +93,7 @@ jobs:
       - name: Bundle Chrome for offline scientific export
         shell: pwsh
         run: |
-          $chromePath = python -c "import kaleido; print(kaleido.get_chrome_sync())"
-          $chromePath = $chromePath.Trim()
+          $chromePath = (python -c "import kaleido; print(kaleido.get_chrome_sync())").Trim()
           if (!(Test-Path $chromePath)) { throw "Kaleido Chrome download failed: $chromePath" }
           New-Item -ItemType Directory -Force -Path "vendor/chrome" | Out-Null
           $chromeDir = Split-Path -Parent $chromePath
@@ -178,6 +189,17 @@ jobs:
             throw "The packaged UV-Vis server did not reach a ready state with v3.1 modules loaded."
           }
 
+      - name: Create portable Windows ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "portable/UV-Vis Spectrum Studio" | Out-Null
+          Copy-Item -Path "dist/UV-Vis Spectrum Studio/*" -Destination "portable/UV-Vis Spectrum Studio" -Recurse -Force
+          Copy-Item README.md,LICENSE,LICENSE-NOTICE.md,CITATION.cff,CHANGELOG.md -Destination "portable" -Force
+          $zip = "installer_output/UVVis_Spectrum_Studio_v3.1.0_Windows_x64_Portable.zip"
+          New-Item -ItemType Directory -Force -Path "installer_output" | Out-Null
+          Compress-Archive -Path "portable/*" -DestinationPath $zip -CompressionLevel Optimal -Force
+          (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256"
+
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup -y --no-progress
@@ -188,7 +210,7 @@ jobs:
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\uvvis_studio.iss"
           if (!(Test-Path "installer_output/UVVis_Spectrum_Studio_Setup.exe")) { throw "Installer was not created." }
 
-      - name: Sign installer
+      - name: Sign installer and generate checksum
         shell: pwsh
         run: |
           $cert = Get-Item "Cert:\CurrentUser\My\$env:SIGNING_CERT_THUMBPRINT"
@@ -200,20 +222,32 @@ jobs:
           }
           if ($null -eq (Get-AuthenticodeSignature $installer).SignerCertificate) { throw "Installer was not signed." }
           (Get-FileHash $installer -Algorithm SHA256).Hash | Set-Content "installer_output/UVVis_Spectrum_Studio_Setup.sha256"
+          @"
+          UV-Vis Spectrum Studio 3.1.0
+          Git commit: ${{ github.sha }}
+          Git ref: ${{ github.ref }}
+          Runner OS: $env:RUNNER_OS
+          Architecture: x64-compatible
+          Python: $(python --version)
+          Signing mode: $env:SIGNING_MODE
+          "@ | Set-Content "installer_output/BUILD-INFO-Windows-x64.txt" -Encoding UTF8
 
-      - name: Upload installer artifact
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-Windows-Installer-v3.1.0
+          name: UVVis-Spectrum-Studio-Windows-v3.1.0
           path: |
             installer_output/UVVis_Spectrum_Studio_Setup.exe
             installer_output/UVVis_Spectrum_Studio_Setup.sha256
+            installer_output/UVVis_Spectrum_Studio_v3.1.0_Windows_x64_Portable.zip
+            installer_output/UVVis_Spectrum_Studio_v3.1.0_Windows_x64_Portable.zip.sha256
+            installer_output/BUILD-INFO-Windows-x64.txt
             build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer
             build_assets/requirements-lock-v3.1.0.txt
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Publish installer to tagged GitHub Release
+      - name: Publish Windows assets to tagged GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
@@ -222,10 +256,9 @@ jobs:
           $tag = "${{ github.ref_name }}"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio $tag" --notes "Scientific-production hardening release. See README and release assets for platform builds, checksums, environment locks, validation safeguards and reproducibility metadata."
+            gh release create $tag --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio $tag" --notes "Cross-platform scientific release. See README, CHANGELOG, checksums and build metadata."
           }
-          gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.exe" --clobber
-          gh release upload $tag "installer_output/UVVis_Spectrum_Studio_Setup.sha256" --clobber
+          Get-ChildItem "installer_output/*" -File | ForEach-Object { gh release upload $tag $_.FullName --clobber }
           gh release upload $tag "build_assets/requirements-lock-v3.1.0.txt" --clobber
           if (Test-Path "build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer") {
             gh release upload $tag "build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer" --clobber
