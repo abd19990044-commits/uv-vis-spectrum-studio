@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use UV-Vis Spectrum Studio in research, please cite the software release used in your work."
+message: "If you use UV-Vis Spectrum Studio in research, please cite the exact software release used. After Zenodo archives a release, prefer the DOI for that archived version."
 title: "UV-Vis Spectrum Studio"
 type: software
 authors:
@@ -11,16 +11,19 @@ license: MIT
 repository-code: "https://github.com/abd19990044-commits/uv-vis-spectrum-studio"
 url: "https://github.com/abd19990044-commits/uv-vis-spectrum-studio"
 abstract: >-
-  UV-Vis Spectrum Studio is an open-source analytical spectroscopy environment
-  for UV-Vis spectral processing, publication-quality visualization,
-  quantitative analysis, analytical-method validation, multicomponent
-  spectrophotometry, peak fitting and deconvolution, Fourier/wavelet analysis,
-  chemometrics, reproducible project files, and desktop workflows.
+  UV-Vis Spectrum Studio is an open-source, cross-platform scientific environment
+  for UV-Vis spectral processing, publication-quality visualization, quantitative
+  analysis, analytical-method validation, multicomponent spectrophotometry,
+  derivative spectroscopy, peak fitting and deconvolution, Fourier/wavelet
+  analysis, chemometrics, and reproducible tamper-evident project files.
 keywords:
   - UV-Vis spectroscopy
   - analytical chemistry
   - spectrophotometry
   - chemometrics
-  - method validation
-  - spectral analysis
+  - analytical method validation
+  - derivative spectrophotometry
+  - peak deconvolution
+  - multicomponent analysis
+  - reproducible research
   - scientific software
