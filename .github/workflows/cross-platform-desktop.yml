@@ -1,0 +1,227 @@
+name: Cross-platform Desktop Builds
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-desktop.txt
+
+      - name: Install system runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.0-37 xvfb
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-desktop.txt pytest
+
+      - name: Verify release version and run tests
+        run: |
+          python - <<'PY'
+          import uvvis_studio
+          print("Building", uvvis_studio.__version__)
+          PY
+          pytest -q
+          python -m compileall app.py desktop_launcher.py uvvis_studio
+
+      - name: Bundle Chrome for Kaleido export
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import kaleido, shutil
+          browser = Path(kaleido.get_chrome_sync()).resolve()
+          print("Chrome:", browser)
+          root = Path("vendor/chrome")
+          root.mkdir(parents=True, exist_ok=True)
+          source = browser.parent
+          for item in source.iterdir():
+              target = root / item.name
+              if item.is_dir():
+                  shutil.copytree(item, target, dirs_exist_ok=True)
+              else:
+                  shutil.copy2(item, target)
+          PY
+
+      - name: Build Linux desktop bundle
+        run: |
+          pyinstaller --noconfirm --clean --onedir \
+            --name "UV-Vis Spectrum Studio" \
+            --add-data "app.py:." \
+            --add-data ".streamlit:.streamlit" \
+            --add-data "uvvis_studio:uvvis_studio" \
+            --add-data "vendor/chrome:vendor/chrome" \
+            --collect-all streamlit \
+            --collect-all plotly \
+            --collect-all pywt \
+            --collect-all sklearn \
+            --hidden-import kaleido \
+            --collect-data kaleido \
+            --hidden-import choreographer \
+            --collect-data choreographer \
+            --collect-all webview \
+            --collect-submodules uvvis_studio \
+            desktop_launcher.py
+
+      - name: Packaged self-test
+        run: |
+          marker="$RUNNER_TEMP/uvvis-self-test.ok"
+          export UVVIS_SELF_TEST_MARKER="$marker"
+          timeout 120 "dist/UV-Vis Spectrum Studio/UV-Vis Spectrum Studio" --uvvis-self-test
+          test -f "$marker"
+          cat "$marker"
+
+      - name: Create Linux archive and checksums
+        shell: bash
+        run: |
+          VERSION=$(python -c "import uvvis_studio; print(uvvis_studio.__version__)")
+          ARCH=$(uname -m)
+          mkdir -p release
+          tar -C dist -czf "release/UVVis_Spectrum_Studio_v${VERSION}_Linux_${ARCH}.tar.gz" "UV-Vis Spectrum Studio"
+          (cd release && sha256sum * > SHA256SUMS.txt)
+          pip freeze > "release/requirements-lock-Linux-${ARCH}.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UVVis-Spectrum-Studio-Linux
+          path: release/*
+          retention-days: 30
+
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-13, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-desktop.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-desktop.txt pytest
+
+      - name: Run scientific tests
+        run: |
+          pytest -q
+          python -m compileall app.py desktop_launcher.py uvvis_studio
+
+      - name: Bundle Chrome for Kaleido export
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import kaleido, shutil
+          browser = Path(kaleido.get_chrome_sync()).resolve()
+          print("Chrome:", browser)
+          root = Path("vendor/chrome")
+          root.mkdir(parents=True, exist_ok=True)
+          # macOS Chrome lives inside an .app bundle. Copy the whole nearest .app
+          # when present; otherwise copy the executable directory.
+          app = next((p for p in browser.parents if p.suffix == ".app"), None)
+          if app:
+              shutil.copytree(app, root / app.name, dirs_exist_ok=True)
+          else:
+              for item in browser.parent.iterdir():
+                  target = root / item.name
+                  if item.is_dir():
+                      shutil.copytree(item, target, dirs_exist_ok=True)
+                  else:
+                      shutil.copy2(item, target)
+          PY
+
+      - name: Build macOS application
+        run: |
+          pyinstaller --noconfirm --clean --windowed --onedir \
+            --name "UV-Vis Spectrum Studio" \
+            --add-data "app.py:." \
+            --add-data ".streamlit:.streamlit" \
+            --add-data "uvvis_studio:uvvis_studio" \
+            --add-data "vendor/chrome:vendor/chrome" \
+            --collect-all streamlit \
+            --collect-all plotly \
+            --collect-all pywt \
+            --collect-all sklearn \
+            --hidden-import kaleido \
+            --collect-data kaleido \
+            --hidden-import choreographer \
+            --collect-data choreographer \
+            --collect-all webview \
+            --collect-submodules uvvis_studio \
+            desktop_launcher.py
+
+      - name: Packaged self-test
+        shell: bash
+        run: |
+          marker="$RUNNER_TEMP/uvvis-self-test.ok"
+          export UVVIS_SELF_TEST_MARKER="$marker"
+          EXE="dist/UV-Vis Spectrum Studio.app/Contents/MacOS/UV-Vis Spectrum Studio"
+          if [ ! -x "$EXE" ]; then
+            EXE="dist/UV-Vis Spectrum Studio/UV-Vis Spectrum Studio"
+          fi
+          "$EXE" --uvvis-self-test
+          test -f "$marker"
+          cat "$marker"
+
+      - name: Create macOS archive and checksums
+        shell: bash
+        run: |
+          VERSION=$(python -c "import uvvis_studio; print(uvvis_studio.__version__)")
+          ARCH=$(uname -m)
+          mkdir -p release
+          if [ -d "dist/UV-Vis Spectrum Studio.app" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "dist/UV-Vis Spectrum Studio.app" "release/UVVis_Spectrum_Studio_v${VERSION}_macOS_${ARCH}.zip"
+          else
+            ditto -c -k --sequesterRsrc --keepParent "dist/UV-Vis Spectrum Studio" "release/UVVis_Spectrum_Studio_v${VERSION}_macOS_${ARCH}.zip"
+          fi
+          (cd release && shasum -a 256 * > SHA256SUMS.txt)
+          pip freeze > "release/requirements-lock-macOS-${ARCH}.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UVVis-Spectrum-Studio-${{ matrix.os }}
+          path: release/*
+          retention-days: 30
+
+  publish-tagged-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Upload cross-platform assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
+            gh release create "${GITHUB_REF_NAME}" --title "UV-Vis Spectrum Studio ${GITHUB_REF_NAME}" --generate-notes
+          find artifacts -type f -maxdepth 2 -print
+          while IFS= read -r file; do
+            gh release upload "${GITHUB_REF_NAME}" "$file" --clobber
+          done < <(find artifacts -type f)
