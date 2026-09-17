@@ -1,0 +1,150 @@
+name: Publish v3.1.0 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release-v3.1.0.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-v3.1.0
+  cancel-in-progress: false
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TAG: v3.1.0
+      VERSION: 3.1.0
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify release metadata and tests prerequisite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          data = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
+          version = data['project']['version']
+          if version != '3.1.0':
+              raise SystemExit(f'Expected project version 3.1.0, found {version}')
+          PY
+          test -f REFERENCES.md
+          grep -q "## 3.1.0" CHANGELOG.md
+          python tools/validate_release_metadata.py
+
+      - name: Create immutable release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            remote_sha="$(git ls-remote --tags origin "refs/tags/${TAG}" | awk '{print $1}')"
+            if [ "$remote_sha" != "$GITHUB_SHA" ]; then
+              echo "Tag ${TAG} already exists at ${remote_sha}; refusing to move an immutable release tag."
+              exit 1
+            fi
+            echo "Tag ${TAG} already points at this release commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" "$GITHUB_SHA" -m "UV-Vis Spectrum Studio ${TAG}"
+            git push origin "refs/tags/${TAG}"
+          fi
+
+      - name: Create draft release gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release create "${TAG}" \
+              --draft \
+              --target "$GITHUB_SHA" \
+              --title "UV-Vis Spectrum Studio ${TAG}" \
+              --notes-file - <<'EOF'
+          # UV-Vis Spectrum Studio v3.1.0
+
+          Cross-platform scientific spectroscopy release with Windows, Linux, macOS, and Python distributions.
+
+          Highlights include analytical-method validation hardening, weighted calibration and heteroscedasticity diagnostics, nested PLS evaluation, project integrity/provenance metadata, peak-fit diagnostics, and documented scientific references.
+
+          This software is intended for scientific and educational use. Analytical results should be reviewed by a qualified analyst before publication, quality-control decisions, or regulated use. SHA-256 project checks provide integrity checking but are not a substitute for authenticated electronic records, electronic signatures, or formal regulatory validation.
+          EOF
+          fi
+
+      - name: Wait for tagged platform builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflows=(
+            "Windows Installer"
+            "Cross-platform Desktop Builds"
+            "Python Distribution"
+          )
+
+          for workflow in "${workflows[@]}"; do
+            echo "Waiting for tagged run: ${workflow}"
+            run_id=""
+            for attempt in $(seq 1 60); do
+              run_id="$(gh run list \
+                --workflow "$workflow" \
+                --commit "$GITHUB_SHA" \
+                --event push \
+                --limit 20 \
+                --json databaseId,headBranch \
+                --jq '[.[] | select(.headBranch == "'"${TAG}"'")][0].databaseId // empty')"
+              if [ -n "$run_id" ]; then
+                break
+              fi
+              sleep 10
+            done
+            if [ -z "$run_id" ]; then
+              echo "Tagged workflow run was not found for ${workflow}."
+              exit 1
+            fi
+            echo "Watching ${workflow} run ${run_id}"
+            gh run watch "$run_id" --exit-status
+          done
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          assets="$(gh release view "${TAG}" --json assets --jq '.assets[].name')"
+          printf '%s\n' "$assets"
+
+          require_match() {
+            local pattern="$1"
+            local label="$2"
+            if ! printf '%s\n' "$assets" | grep -Eiq "$pattern"; then
+              echo "Missing required release asset: ${label}"
+              exit 1
+            fi
+          }
+
+          require_match 'UVVis_Spectrum_Studio_Setup\.exe$' 'Windows installer EXE'
+          require_match 'Windows_x64_Portable\.zip$' 'Windows portable ZIP'
+          require_match 'Linux[-_].*x86_64.*\.(tar\.gz|zip)$|x86_64.*Linux.*\.(tar\.gz|zip)$' 'Linux x86_64 package'
+          require_match 'Linux[-_].*arm64.*\.(tar\.gz|zip)$|arm64.*Linux.*\.(tar\.gz|zip)$' 'Linux ARM64 package'
+          require_match 'macOS.*x86_64.*\.dmg$|x86_64.*macOS.*\.dmg$' 'macOS Intel DMG'
+          require_match 'macOS.*arm64.*\.dmg$|arm64.*macOS.*\.dmg$' 'macOS Apple Silicon DMG'
+          require_match '\.whl$' 'Python wheel'
+          require_match '\.tar\.gz$' 'Python source distribution'
+          require_match '\.sha256$|SHA256' 'release checksum files'
+
+      - name: Publish GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit "${TAG}" --draft=false --latest
+          gh release view "${TAG}" --json url,isDraft,isLatest,tagName,name
