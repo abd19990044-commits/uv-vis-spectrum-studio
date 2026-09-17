@@ -3,6 +3,7 @@ name: Python Distribution
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags:
       - "v*"
     paths:
@@ -10,16 +11,27 @@ on:
       - "uvvis_studio/**"
       - "README.md"
       - "LICENSE"
+      - "LICENSE-NOTICE.md"
       - "CITATION.cff"
       - ".zenodo.json"
+      - "codemeta.json"
+      - "CHANGELOG.md"
       - ".github/workflows/python-distribution.yml"
 
 permissions:
   contents: write
 
+concurrency:
+  group: python-dist-v3-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+
+env:
+  RELEASE_VERSION: "3.1.0"
+
 jobs:
   build-python-distribution:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -27,12 +39,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install build tools
+      - name: Install build and test tools
         run: |
           python -m pip install --upgrade pip
-          pip install build twine
+          pip install build twine pytest
 
-      - name: Verify package and tag version
+      - name: Verify package, metadata and tag version
         shell: bash
         run: |
           PACKAGE_VERSION=$(python -c 'import uvvis_studio; print(uvvis_studio.__version__)')
@@ -42,22 +54,62 @@ jobs:
               print(tomllib.load(f)['project']['version'])
           PY
           )
+          test "$PACKAGE_VERSION" = "$RELEASE_VERSION"
           test "$PACKAGE_VERSION" = "$TOML_VERSION"
+          grep -q "version: $PACKAGE_VERSION" CITATION.cff
+          python - <<'PY'
+          import json
+          from uvvis_studio import __version__
+          meta = json.load(open('.zenodo.json', encoding='utf-8'))
+          assert meta['version'] == __version__, (meta['version'], __version__)
+          assert meta['license'].lower() == 'mit'
+          PY
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             test "${GITHUB_REF_NAME#v}" = "$PACKAGE_VERSION"
           fi
 
+      - name: Run scientific tests and compile package
+        run: |
+          pip install -r requirements.txt
+          pytest -q
+          python -m compileall uvvis_studio
+
       - name: Build wheel and source distribution
         run: python -m build
 
-      - name: Validate distributions
+      - name: Validate distribution metadata
         run: python -m twine check dist/*
 
-      - name: Generate checksums
+      - name: Smoke-test wheel in isolated virtual environment
         shell: bash
         run: |
-          cd dist
-          sha256sum *.whl *.tar.gz > SHA256SUMS-Python.txt
+          python -m venv "$RUNNER_TEMP/uvvis-wheel-smoke"
+          source "$RUNNER_TEMP/uvvis-wheel-smoke/bin/activate"
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl
+          python - <<'PY'
+          import uvvis_studio
+          from uvvis_studio import analysis, chemometrics, export, io, multicomponent, peakfit, project, quality, validation
+          print('installed-version', uvvis_studio.__version__)
+          assert uvvis_studio.__version__ == '3.1.0'
+          PY
+          uvvis-spectrum-studio --version
+          python -m pip check
+          deactivate
+
+      - name: Generate checksums and build metadata
+        shell: bash
+        run: |
+          pip freeze | sort > dist/requirements-build-Python.txt
+          cat > dist/BUILD-INFO-Python.txt <<EOF
+          UV-Vis Spectrum Studio ${RELEASE_VERSION}
+          Git commit: ${GITHUB_SHA}
+          Git ref: ${GITHUB_REF}
+          Runner OS: ${RUNNER_OS}
+          Python: $(python --version 2>&1)
+          Distribution: wheel + source distribution
+          EOF
+          (cd dist && sha256sum *.whl *.tar.gz requirements-build-Python.txt BUILD-INFO-Python.txt > SHA256SUMS-Python.txt)
 
       - uses: actions/upload-artifact@v4
         with:
@@ -65,14 +117,20 @@ jobs:
           path: dist/*
           retention-days: 30
 
-      - name: Upload distributions to tagged GitHub Release
+      - name: Upload Python distributions to draft tagged release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
-            gh release create "$GITHUB_REF_NAME" --target "$GITHUB_SHA" --title "UV-Vis Spectrum Studio $GITHUB_REF_NAME" --generate-notes
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --draft --target "$GITHUB_SHA" --title "UV-Vis Spectrum Studio $GITHUB_REF_NAME" --notes "Draft scientific software release. Publish only after Windows, Linux, macOS, Python distribution, checksums, metadata, and release QA are complete. Publishing the release is the Zenodo archival gate." || true
+          fi
+          for attempt in {1..10}; do
+            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then break; fi
+            sleep 3
+          done
+          gh release view "$GITHUB_REF_NAME" >/dev/null
           for file in dist/*; do
             gh release upload "$GITHUB_REF_NAME" "$file" --clobber
           done
