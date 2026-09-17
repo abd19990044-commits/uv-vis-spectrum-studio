@@ -8,11 +8,11 @@ on:
 
 permissions:
   contents: write
-  actions: read
+  actions: write
 
 concurrency:
   group: publish-v3.1.0
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   publish-release:
@@ -23,12 +23,12 @@ jobs:
       VERSION: 3.1.0
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout release commit
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify release metadata and tests prerequisite
+      - name: Verify release metadata prerequisite
         shell: bash
         run: |
           set -euo pipefail
@@ -44,32 +44,50 @@ jobs:
           grep -q "## 3.1.0" CHANGELOG.md
           python tools/validate_release_metadata.py
 
-      - name: Create immutable release tag
+      - name: Resolve immutable release tag
+        id: release_ref
         shell: bash
         run: |
           set -euo pipefail
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            remote_sha="$(git ls-remote --tags origin "refs/tags/${TAG}" | awk '{print $1}')"
-            if [ "$remote_sha" != "$GITHUB_SHA" ]; then
-              echo "Tag ${TAG} already exists at ${remote_sha}; refusing to move an immutable release tag."
-              exit 1
-            fi
-            echo "Tag ${TAG} already points at this release commit."
+          git fetch --tags --force
+          if git rev-parse "refs/tags/${TAG}^{commit}" >/dev/null 2>&1; then
+            release_sha="$(git rev-parse "refs/tags/${TAG}^{commit}")"
+            echo "Existing immutable tag ${TAG} -> ${release_sha}"
           else
+            release_sha="$GITHUB_SHA"
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "${TAG}" "$GITHUB_SHA" -m "UV-Vis Spectrum Studio ${TAG}"
+            git tag -a "${TAG}" "$release_sha" -m "UV-Vis Spectrum Studio ${TAG}"
             git push origin "refs/tags/${TAG}"
           fi
+          echo "release_sha=${release_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tagged source metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_sha="${{ steps.release_ref.outputs.release_sha }}"
+          git checkout --detach "$release_sha"
+          python tools/validate_release_metadata.py
+          python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+          assert version == '3.1.0', version
+          PY
+          test -f REFERENCES.md
+          grep -q "weighted linear calibration" CHANGELOG.md
+          git checkout --detach "$GITHUB_SHA"
 
       - name: Create draft release gate
         shell: bash
         run: |
           set -euo pipefail
+          release_sha="${{ steps.release_ref.outputs.release_sha }}"
           if ! gh release view "${TAG}" >/dev/null 2>&1; then
             gh release create "${TAG}" \
               --draft \
-              --target "$GITHUB_SHA" \
+              --target "$release_sha" \
               --title "UV-Vis Spectrum Studio ${TAG}" \
               --notes-file - <<'EOF'
           # UV-Vis Spectrum Studio v3.1.0
@@ -82,10 +100,19 @@ jobs:
           EOF
           fi
 
+      - name: Dispatch tagged platform builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run windows-installer.yml --ref "${TAG}"
+          gh workflow run cross-platform-desktop.yml --ref "${TAG}"
+          gh workflow run python-distribution.yml --ref "${TAG}"
+
       - name: Wait for tagged platform builds
         shell: bash
         run: |
           set -euo pipefail
+          release_sha="${{ steps.release_ref.outputs.release_sha }}"
           workflows=(
             "Windows Installer"
             "Cross-platform Desktop Builds"
@@ -93,16 +120,16 @@ jobs:
           )
 
           for workflow in "${workflows[@]}"; do
-            echo "Waiting for tagged run: ${workflow}"
+            echo "Waiting for tagged workflow_dispatch run: ${workflow}"
             run_id=""
-            for attempt in $(seq 1 60); do
+            for attempt in $(seq 1 90); do
               run_id="$(gh run list \
                 --workflow "$workflow" \
-                --commit "$GITHUB_SHA" \
-                --event push \
+                --commit "$release_sha" \
+                --event workflow_dispatch \
                 --limit 20 \
-                --json databaseId,headBranch \
-                --jq '[.[] | select(.headBranch == "'"${TAG}"'")][0].databaseId // empty')"
+                --json databaseId,headBranch,createdAt \
+                --jq '[.[] | select(.headBranch == "'"${TAG}"'")] | sort_by(.createdAt) | reverse | .[0].databaseId // empty')"
               if [ -n "$run_id" ]; then
                 break
               fi
@@ -139,7 +166,7 @@ jobs:
           require_match 'macOS.*x86_64.*\.dmg$|x86_64.*macOS.*\.dmg$' 'macOS Intel DMG'
           require_match 'macOS.*arm64.*\.dmg$|arm64.*macOS.*\.dmg$' 'macOS Apple Silicon DMG'
           require_match '\.whl$' 'Python wheel'
-          require_match '\.tar\.gz$' 'Python source distribution'
+          require_match 'uvvis_spectrum_studio-3\.1\.0\.tar\.gz$' 'Python source distribution'
           require_match '\.sha256$|SHA256' 'release checksum files'
 
       - name: Publish GitHub Release
