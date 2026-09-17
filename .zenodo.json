@@ -3,14 +3,17 @@
   "title": "UV-Vis Spectrum Studio",
   "creators": [
     {
-      "name": "Hasan, Abdulsalam S."
+      "name": "Hasan, Abdulsalam S.",
+      "affiliation": "University of Mosul, College of Science, Department of Chemistry",
+      "type": "ProjectLeader"
     }
   ],
-  "description": "UV-Vis Spectrum Studio is an open-source, cross-platform scientific environment for UV-Vis spectroscopy. It provides spectral import and cleaning, publication-quality visualization, derivative spectroscopy through fourth order with quality safeguards, quantitative calibration and analytical-method validation, multicomponent spectrophotometry, peak fitting and deconvolution, Fourier and wavelet analysis, chemometrics with fold-safe preprocessing and nested PLS validation, and reproducible tamper-evident project archives. Desktop distributions are produced for Windows, macOS, and Linux from the same tested scientific core.",
+  "description": "UV-Vis Spectrum Studio is open-source, cross-platform scientific software for UV-Vis spectroscopy and analytical chemistry. It provides robust spectral import and cleaning, publication-quality visualization, derivative spectroscopy through fourth order with numerical and spectroscopic quality safeguards, quantitative calibration and analytical-method validation, multicomponent spectrophotometry, peak fitting and deconvolution, Fourier and wavelet analysis, chemometrics with fold-safe supervised preprocessing and nested PLS validation, and reproducible tamper-evident UVVISPROJ project archives. Release workflows produce tested platform-specific desktop distributions, source/Python distributions, checksums, dependency snapshots, and build provenance.",
   "access_right": "open",
-  "license": "MIT",
+  "license": "mit",
   "version": "3.1.0",
   "publication_date": "2026-09-17",
+  "language": "eng",
   "keywords": [
     "UV-Vis spectroscopy",
     "analytical chemistry",
@@ -20,8 +23,9 @@
     "derivative spectrophotometry",
     "multicomponent analysis",
     "peak deconvolution",
-    "scientific software",
-    "reproducible research"
+    "spectral processing",
+    "reproducible research",
+    "scientific software"
   ],
-  "notes": "Research and analytical-support software released under the MIT License. The software is not represented as a validated GMP, GLP, 21 CFR Part 11, or ISO 17025 system by default. Laboratories remain responsible for method validation, software qualification, and data-integrity controls required by their quality system. Release assets include platform-specific builds, checksums, and dependency snapshots where produced by CI."
+  "notes": "Research, teaching, analytical-development, and analytical-support software released under the MIT License. The software is not represented by default as a validated GMP, GLP, 21 CFR Part 11, or ISO/IEC 17025 system. Laboratories remain responsible for installation/software qualification, analytical-method validation, access control, data-integrity controls, audit-trail requirements, and regulatory compliance required by their quality system. Cite the exact archived software version used in research."
 }
