@@ -26,6 +26,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: cross-platform-v3-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+
 env:
   RELEASE_VERSION: "3.1.0"
 
@@ -37,10 +41,12 @@ jobs:
         include:
           - runner: ubuntu-22.04
             arch_label: x86_64
+            bundle_chrome: true
           - runner: ubuntu-24.04-arm
             arch_label: arm64
+            bundle_chrome: false
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 75
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
 
@@ -72,6 +78,8 @@ jobs:
         run: |
           VERSION=$(python -c "import uvvis_studio; print(uvvis_studio.__version__)")
           test "$VERSION" = "$RELEASE_VERSION"
+          TOML_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          test "$TOML_VERSION" = "$VERSION"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             test "${GITHUB_REF_NAME#v}" = "$VERSION"
           fi
@@ -87,8 +95,11 @@ jobs:
           GIT_COMMIT = "${GITHUB_SHA}"
           BUILD_UTC = "${BUILD_UTC}"
           EOF
+          python -m py_compile uvvis_studio/build_info.py
 
-      - name: Bundle Chrome for Kaleido export
+      - name: Bundle Chrome for Kaleido export on x86_64
+        if: matrix.bundle_chrome
+        shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -102,26 +113,37 @@ jobs:
                   shutil.copytree(item, target, dirs_exist_ok=True)
               else:
                   shutil.copy2(item, target)
+          if not any(p.name == "chrome" for p in root.rglob("chrome")):
+              raise SystemExit("Bundled Chrome executable was not found")
           PY
+
+      - name: Note Linux ARM64 export browser requirement
+        if: ${{ !matrix.bundle_chrome }}
+        shell: bash
+        run: |
+          echo "Chrome-for-Testing has no linux-arm64 download through Kaleido."
+          echo "The ARM64 desktop build remains functional; publication raster/vector export uses a system Chrome/Chromium via BROWSER_PATH."
 
       - name: Build Linux desktop bundle
         shell: bash
         run: |
+          EXTRA_DATA=()
+          if [ -d vendor/chrome ]; then
+            EXTRA_DATA+=(--add-data "vendor/chrome:vendor/chrome")
+          fi
           pyinstaller --noconfirm --clean --onedir \
             --name "UV-Vis Spectrum Studio" \
             --add-data "app.py:." \
             --add-data ".streamlit:.streamlit" \
             --add-data "uvvis_studio:uvvis_studio" \
-            --add-data "vendor/chrome:vendor/chrome" \
+            "${EXTRA_DATA[@]}" \
             --collect-all streamlit \
             --collect-all plotly \
             --collect-all pywt \
-            --collect-all sklearn \
             --hidden-import kaleido \
             --collect-data kaleido \
             --hidden-import choreographer \
             --collect-data choreographer \
-            --collect-all webview \
             --collect-submodules uvvis_studio \
             desktop_launcher.py
 
@@ -141,7 +163,8 @@ jobs:
           mkdir -p release staging
           cp -R "dist/UV-Vis Spectrum Studio" staging/
           cp README.md LICENSE LICENSE-NOTICE.md CITATION.cff CHANGELOG.md staging/
-          tar -C staging -czf "release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_Linux_${{ matrix.arch_label }}.tar.gz" .
+          OUT="$PWD/release/UVVis_Spectrum_Studio_v${RELEASE_VERSION}_Linux_${{ matrix.arch_label }}.tar.gz"
+          tar -C staging -czf "$OUT" .
           pip freeze | sort > "release/requirements-lock-Linux-${{ matrix.arch_label }}.txt"
           cat > "release/BUILD-INFO-Linux-${{ matrix.arch_label }}.txt" <<EOF
           UV-Vis Spectrum Studio ${RELEASE_VERSION}
@@ -151,6 +174,7 @@ jobs:
           Runner OS: ${RUNNER_OS}
           Architecture: ${{ matrix.arch_label }}
           Python: $(python --version 2>&1)
+          Bundled Chrome-for-Testing: ${{ matrix.bundle_chrome }}
           EOF
           (cd release && sha256sum UVVis_* requirements-lock-* BUILD-INFO-* > "SHA256SUMS-Linux-${{ matrix.arch_label }}.txt")
 
@@ -170,7 +194,7 @@ jobs:
           - runner: macos-15
             arch_label: arm64
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 80
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -191,6 +215,8 @@ jobs:
         run: |
           VERSION=$(python -c "import uvvis_studio; print(uvvis_studio.__version__)")
           test "$VERSION" = "$RELEASE_VERSION"
+          TOML_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          test "$TOML_VERSION" = "$VERSION"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             test "${GITHUB_REF_NAME#v}" = "$VERSION"
           fi
@@ -206,26 +232,28 @@ jobs:
           GIT_COMMIT = "${GITHUB_SHA}"
           BUILD_UTC = "${BUILD_UTC}"
           EOF
+          python -m py_compile uvvis_studio/build_info.py
 
-      - name: Bundle Chrome for Kaleido export
+      - name: Package Chrome as opaque archive for Kaleido
+        shell: bash
         run: |
-          python - <<'PY'
+          BROWSER=$(python -c "import kaleido; print(kaleido.get_chrome_sync())")
+          APP=$(python - "$BROWSER" <<'PY'
           from pathlib import Path
-          import kaleido, shutil
-          browser = Path(kaleido.get_chrome_sync()).resolve()
-          root = Path("vendor/chrome")
-          root.mkdir(parents=True, exist_ok=True)
-          app = next((p for p in browser.parents if p.suffix == ".app"), None)
-          if app:
-              shutil.copytree(app, root / app.name, dirs_exist_ok=True)
-          else:
-              for item in browser.parent.iterdir():
-                  target = root / item.name
-                  if item.is_dir():
-                      shutil.copytree(item, target, dirs_exist_ok=True)
-                  else:
-                      shutil.copy2(item, target)
+          import sys
+          p = Path(sys.argv[1]).resolve()
+          app = next((parent for parent in p.parents if parent.suffix == '.app'), None)
+          print(app or '')
           PY
+          )
+          mkdir -p vendor/chrome
+          if [ -n "$APP" ] && [ -d "$APP" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "$APP" vendor/chrome/chrome-macos.zip
+          else
+            BROWSER_DIR=$(dirname "$BROWSER")
+            ditto -c -k --sequesterRsrc --keepParent "$BROWSER_DIR" vendor/chrome/chrome-macos.zip
+          fi
+          test -s vendor/chrome/chrome-macos.zip
 
       - name: Build macOS application
         shell: bash
@@ -240,14 +268,20 @@ jobs:
             --collect-all streamlit \
             --collect-all plotly \
             --collect-all pywt \
-            --collect-all sklearn \
             --hidden-import kaleido \
             --collect-data kaleido \
             --hidden-import choreographer \
             --collect-data choreographer \
-            --collect-all webview \
             --collect-submodules uvvis_studio \
             desktop_launcher.py
+
+      - name: Apply ad-hoc signature to macOS app
+        shell: bash
+        run: |
+          if [ -d "dist/UV-Vis Spectrum Studio.app" ]; then
+            codesign --force --deep --sign - "dist/UV-Vis Spectrum Studio.app"
+            codesign --verify --deep --strict "dist/UV-Vis Spectrum Studio.app"
+          fi
 
       - name: Packaged self-test
         shell: bash
@@ -284,7 +318,8 @@ jobs:
           Runner OS: ${RUNNER_OS}
           Architecture: ${{ matrix.arch_label }}
           Python: $(python --version 2>&1)
-          Signing/notarization: not configured in this workflow
+          Application signature: ad-hoc
+          Apple Developer ID notarization: not configured
           EOF
           (cd release && shasum -a 256 UVVis_* requirements-lock-* BUILD-INFO-* > "SHA256SUMS-macOS-${{ matrix.arch_label }}.txt")
 
@@ -294,7 +329,7 @@ jobs:
           path: release/*
           retention-days: 30
 
-  publish-tagged-release:
+  upload-tagged-assets:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build-linux, build-macos]
     runs-on: ubuntu-latest
@@ -304,14 +339,19 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Upload cross-platform assets to GitHub Release
+      - name: Upload cross-platform assets to draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
-            gh release create "$GITHUB_REF_NAME" --target "$GITHUB_SHA" --title "UV-Vis Spectrum Studio $GITHUB_REF_NAME" --generate-notes
-          find artifacts -type f -maxdepth 2 -print
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --draft --target "$GITHUB_SHA" --title "UV-Vis Spectrum Studio $GITHUB_REF_NAME" --notes "Draft scientific software release. Publish only after all platform builds and release QA complete. Publishing is the Zenodo archival gate." || true
+          fi
+          for attempt in {1..10}; do
+            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then break; fi
+            sleep 3
+          done
+          gh release view "$GITHUB_REF_NAME" >/dev/null
           while IFS= read -r file; do
             gh release upload "$GITHUB_REF_NAME" "$file" --clobber
           done < <(find artifacts -type f)
