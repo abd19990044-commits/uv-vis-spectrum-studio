@@ -43,7 +43,12 @@ def resource_path(relative: str) -> str:
 
 
 def app_data_dir() -> Path:
-    root = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP_NAME
+    if sys.platform.startswith("win"):
+        root = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / APP_NAME
+    elif sys.platform == "darwin":
+        root = Path.home() / "Library" / "Application Support" / APP_NAME
+    else:
+        root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / APP_NAME
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -73,10 +78,43 @@ def wait_for_server(port: int, process: subprocess.Popen[bytes], timeout: float 
     return False
 
 
+def _bundled_browser() -> Path | None:
+    """Locate the Chrome/Chromium binary bundled for Kaleido on each desktop OS."""
+    root = Path(resource_path("vendor/chrome"))
+    if not root.exists():
+        return None
+
+    preferred = [
+        root / "chrome.exe",
+        root / "chrome",
+        root / "chromium",
+        root / "headless_shell",
+        root / "Google Chrome for Testing.app" / "Contents" / "MacOS" / "Google Chrome for Testing",
+        root / "Google Chrome.app" / "Contents" / "MacOS" / "Google Chrome",
+    ]
+    for candidate in preferred:
+        if candidate.is_file():
+            return candidate
+
+    names = {
+        "chrome.exe",
+        "chrome",
+        "chromium",
+        "headless_shell",
+        "Google Chrome for Testing",
+        "Google Chrome",
+    }
+    for candidate in root.rglob("*"):
+        if candidate.is_file() and candidate.name in names:
+            return candidate
+    return None
+
+
 def configure_runtime() -> None:
-    bundled_chrome = Path(resource_path("vendor/chrome/chrome.exe"))
-    if bundled_chrome.exists():
-        os.environ["BROWSER_PATH"] = str(bundled_chrome)
+    browser = _bundled_browser()
+    if browser is not None:
+        os.environ["BROWSER_PATH"] = str(browser)
+        os.environ.setdefault("CHROME_PATH", str(browser))
     os.environ.setdefault("STREAMLIT_GLOBAL_DEVELOPMENT_MODE", "false")
     os.environ.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
     os.environ.setdefault("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
@@ -92,8 +130,10 @@ def run_streamlit(port: int) -> None:
         sys.stderr = log
         print(f"\n=== UV-Vis server start {time.strftime('%Y-%m-%d %H:%M:%S')} ===")
         print(f"Executable: {sys.executable}")
+        print(f"Platform: {sys.platform}")
         print(f"App path: {app_path}")
         print(f"Requested port: {port}")
+        print(f"Bundled browser: {_bundled_browser()}")
         print(f"UV-Vis Spectrum Studio version: {uvvis_studio.__version__}")
         print(
             "Scientific modules imported: analysis, chemometrics, advanced chemometrics, validation, "
@@ -174,7 +214,7 @@ def packaged_self_test() -> int:
         marker = os.environ.get("UVVIS_SELF_TEST_MARKER")
         if marker:
             Path(marker).write_text(
-                f"ok:{port}:modules-v3.1-quality-chemometrics\n",
+                f"ok:{port}:modules-v3.1-quality-chemometrics:{sys.platform}\n",
                 encoding="utf-8",
             )
         return 0
