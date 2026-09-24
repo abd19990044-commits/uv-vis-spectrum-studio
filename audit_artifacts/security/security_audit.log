@@ -1,0 +1,24 @@
+=== SECURITY AUDIT & HARDENING LOG ===
+Target: uv-vis-spectrum-studio v3.1.0
+Environment: Windows 11 Enterprise (x64)
+Date: 2026-09-22
+
+1. Archive Path Traversal & Zip Slip Probing:
+- Probe: Archive containing member `../../etc/passwd`
+  Result: REJECTED with ValueError("Path traversal attempt in archive member")
+- Probe: Archive containing absolute path `C:/windows/win.ini` or `/etc/shadow`
+  Result: REJECTED with ValueError("Absolute path in archive member")
+- Probe: Archive containing null byte `data\x00.json`
+  Result: REJECTED with ValueError("Suspicious characters in archive member")
+
+2. Decompression Bomb & Resource Exhaustion:
+- Probe: Archive containing > 1000 members (1001 files)
+  Result: REJECTED with ValueError("Zip bomb detected: too many archive members (1001 > 1000)")
+- Probe: Archive with inflated size > 100 MB
+  Result: REJECTED with ValueError("Zip bomb detected: uncompressed size exceeds limit")
+
+3. Malformed Input Parsing:
+- Probe: Corrupted spectral file with uneven rows / binary data / single-token text
+  Result: Caught cleanly by io._read_text / io._read_table without crashing or word-splitting.
+
+Security Hardening Status: ALL PROBES PASSED (Hardened)

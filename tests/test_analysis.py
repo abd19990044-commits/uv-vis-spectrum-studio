@@ -90,3 +90,34 @@ def test_crop():
     xx, yy = crop_xy(x, y, 225, 275)
     assert xx.tolist() == [250.0]
     assert yy.tolist() == [2.0]
+
+
+def test_auc_angstrom_conversion_and_units():
+    from uvvis_studio.analysis import auc_unit, auc_unit_angstrom, convert_auc_to_angstrom
+
+    # Wavelength conversion alone: 1 nm = 10 Å; cuvette area plays no role.
+    s_auc, a_auc, unit = convert_auc_to_angstrom(11.175, 11.175)
+    assert np.isclose(s_auc, 111.75)
+    assert np.isclose(a_auc, 111.75)
+    assert unit == "Abs·Å"
+
+    # Unit strings
+    assert auc_unit_angstrom(0) == "Abs·Å"
+    assert auc_unit(0, unit_mode="Abs·Å") == "Abs·Å"
+    assert auc_unit(0, unit_mode="Abs·nm") == "Abs·nm"
+    assert auc_unit(0) == "Abs·nm"
+    assert auc_unit_angstrom(2) == "Abs·Å/nm^2"
+
+
+def test_absolute_auc_splits_zero_crossing_and_centroid():
+    x = np.array([0., 2.])
+    y = np.array([-1., 1.])
+    signed, absolute, _, _ = integrate_range(x, y, 0., 2.)
+    assert np.isclose(signed, 0.)
+    assert np.isclose(absolute, 1.)
+    metrics = calculate_metrics(x, y)
+    assert np.isclose(metrics.absolute_area, 1.)
+    assert np.isclose(metrics.centroid, 1.)
+    normalized = normalize(x, y, "Area = 1")
+    assert np.isclose(integrate_range(x, normalized, 0., 2.)[1], 1.)
+

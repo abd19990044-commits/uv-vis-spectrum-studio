@@ -167,8 +167,12 @@ def start_server_process(port: int) -> tuple[subprocess.Popen[bytes], object]:
     env["UVVIS_DESKTOP_CHILD"] = "1"
     env["STREAMLIT_GLOBAL_DEVELOPMENT_MODE"] = "false"
     creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, SERVER_FLAG, str(port)]
+    else:
+        cmd = [sys.executable, str(Path(__file__).resolve()), SERVER_FLAG, str(port)]
     process = subprocess.Popen(
-        [sys.executable, SERVER_FLAG, str(port)],
+        cmd,
         cwd=str(Path(sys.executable).resolve().parent),
         env=env,
         stdin=subprocess.DEVNULL,

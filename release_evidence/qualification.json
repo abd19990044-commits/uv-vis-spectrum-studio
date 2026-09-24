@@ -1,0 +1,72 @@
+{
+  "date": "2026-09-24",
+  "version": "3.1.1",
+  "verdict": "research_release_candidate; native_desktop_qualification_pending",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "python": "3.12.14",
+  "pytest": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "130",
+    "time": "19.303",
+    "timestamp": "2026-09-24T16:42:54.142197+02:00",
+    "hostname": "14dfda5fa0c8"
+  },
+  "coverage_percent": 64.85497043086454,
+  "source_browser": {
+    "version": "3.1.1",
+    "module": "/workspace/scratch/44553d150944/project/uv-vis-spectrum-studio/uvvis_studio/__init__.py",
+    "mode": "source",
+    "browser_version": "134.0.6998.35",
+    "upload_headerless_csv": true,
+    "auc": {
+      "observed": 14.7196,
+      "analytic_gaussian_integral": 14.726120259169024
+    },
+    "fourth_derivative_axis": "Fourth Derivative d⁴(Abs)/dλ⁴ (Abs/nm⁴)",
+    "png_svg_pdf_export": true,
+    "stale_export_invalidated": true,
+    "project_roundtrip": true,
+    "status": "passed"
+  },
+  "installed_browser": {
+    "version": "3.1.1",
+    "module": "/workspace/scratch/44553d150944/wheel-venv/lib/python3.12/site-packages/uvvis_studio/__init__.py",
+    "mode": "installed CLI",
+    "browser_version": "134.0.6998.35",
+    "upload_headerless_csv": true,
+    "auc": {
+      "observed": 14.7196,
+      "analytic_gaussian_integral": 14.726120259169024
+    },
+    "fourth_derivative_axis": "Fourth Derivative d⁴(Abs)/dλ⁴ (Abs/nm⁴)",
+    "png_svg_pdf_export": true,
+    "stale_export_invalidated": true,
+    "project_roundtrip": true,
+    "status": "passed"
+  },
+  "runtime_dependencies_audited": 54,
+  "known_vulnerabilities": 0,
+  "dependency_audit_skips": 0,
+  "wheel_source_files_identical": true,
+  "distribution_sha256": {
+    "uvvis_spectrum_studio-3.1.1-py3-none-any.whl": "2892b814e7f0cfef89b91871f8ae104c014aabbaa4cbf3d27635480ac9e2df68",
+    "uvvis_spectrum_studio-3.1.1.tar.gz": "bcdc5bebe85a2563b759564a608bf588350b13c7181295a9665abc2a8e21dbab"
+  },
+  "tool_versions": {
+    "pytest": "9.1.1",
+    "pytest-cov": "7.1.0",
+    "playwright": "1.51.0",
+    "pip-audit": "2.10.1",
+    "build": "1.6.1",
+    "twine": "7.0.0"
+  },
+  "unexecuted_gates": [
+    "Native Windows installer build/install/uninstall",
+    "Native macOS and other Linux architecture bundles",
+    "Shared-service load and penetration testing",
+    "Qualification against a laboratory-specific reference dataset"
+  ]
+}

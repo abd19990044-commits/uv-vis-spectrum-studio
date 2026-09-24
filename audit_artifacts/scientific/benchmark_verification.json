@@ -1,0 +1,102 @@
+{
+  "reference_benchmark_dataset": {
+    "description": "Analytical Reference Benchmark Dataset for UV-Vis Spectrophotometric Quantitation",
+    "inputs": {
+      "concentrations_ug_mL": [0.0, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0],
+      "absorbances_AU": [0.003, 0.081, 0.161, 0.319, 0.481, 0.636, 0.798],
+      "blanks_10_replicates": [0.0031, 0.0027, 0.0034, 0.0029, 0.0032, 0.0030, 0.0035, 0.0028, 0.0033, 0.0031],
+      "molecular_weight_g_mol": 230.26,
+      "pathlength_cm": 1.0
+    },
+    "closed_form_rational_solutions": {
+      "slope_S": "23291 / 293000",
+      "intercept_a": "2163 / 1025500",
+      "r_squared": "542470681 / 542482175",
+      "syx_residual_sd": "sqrt(1.1208191126244304e-5 / 5)",
+      "blank_sd": "sqrt(20/3) * 1e-4",
+      "molar_absorptivity_L_per_mol_cm": "(23291 / 293000) * 230.26 * 1000.0 / 1.0"
+    },
+    "results": {
+      "slope_S": {
+        "theoretical_exact": 0.07949146757679180,
+        "observed": 0.07949146757679179,
+        "absolute_delta": 1.3877787807814457e-17,
+        "relative_delta": 1.7458210467584177e-16,
+        "status": "PASS"
+      },
+      "intercept_a": {
+        "theoretical_exact": 0.0021092150170648463,
+        "observed": 0.0021092150170649027,
+        "absolute_delta": 5.637854605658602e-17,
+        "relative_delta": 2.672963442111812e-14,
+        "status": "PASS"
+      },
+      "r_squared": {
+        "theoretical_exact": 0.9999788122070555,
+        "observed": 0.9999788122070550,
+        "absolute_delta": 5.551115123125783e-16,
+        "relative_delta": 5.551232770281267e-16,
+        "status": "PASS"
+      },
+      "syx_residual_sd": {
+        "theoretical_exact": 0.001497210147323635,
+        "observed": 0.001497210147326008,
+        "absolute_delta": 2.3729906660611417e-15,
+        "relative_delta": 1.5849416131464736e-12,
+        "status": "PASS"
+      },
+      "blank_mean": {
+        "theoretical_exact": 0.0031,
+        "observed": 0.0031,
+        "absolute_delta": 0.0,
+        "relative_delta": 0.0,
+        "status": "PASS"
+      },
+      "blank_sd": {
+        "theoretical_exact": 0.0002581988897471611,
+        "observed": 0.0002581988897471611,
+        "absolute_delta": 0.0,
+        "relative_delta": 0.0,
+        "status": "PASS"
+      },
+      "lod_ug_mL": {
+        "theoretical_exact": 0.01071884017416728,
+        "observed": 0.01071884017416728,
+        "absolute_delta": 0.0,
+        "relative_delta": 0.0,
+        "status": "PASS"
+      },
+      "loq_ug_mL": {
+        "theoretical_exact": 0.032481333861112974,
+        "observed": 0.032481333861112974,
+        "absolute_delta": 0.0,
+        "relative_delta": 0.0,
+        "status": "PASS"
+      },
+      "molar_absorptivity_L_per_mol_cm": {
+        "theoretical_exact": 18303.705324232076,
+        "observed": 18303.705324232076,
+        "absolute_delta": 0.0,
+        "relative_delta": 0.0,
+        "status": "PASS"
+      }
+    }
+  },
+  "derivative_spectroscopy_max_error": {
+    "0D_identity": 0.0,
+    "1D_savgol": 1.83e-10,
+    "2D_savgol": 9.13e-7,
+    "3D_savgol": 2.32e-6,
+    "4D_savgol": 7.33e-3
+  },
+  "multicomponent_recovery": {
+    "cA_true": 15.0,
+    "cA_found": 15.0,
+    "cA_delta": 3.55e-15,
+    "cB_true": 25.0,
+    "cB_found": 25.0,
+    "cB_delta": -3.55e-15,
+    "condition_number": 2.055,
+    "conditioning_status": "acceptable"
+  }
+}

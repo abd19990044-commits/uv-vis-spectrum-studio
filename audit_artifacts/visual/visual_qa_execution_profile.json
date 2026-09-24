@@ -1,0 +1,125 @@
+{
+  "viewports": {
+    "desktop_1080p": {
+      "width": 1920,
+      "height": 1080,
+      "desc": "Desktop Full HD Workstation",
+      "screenshot": "01_initial_state_desktop_1080p.png",
+      "header_visible": true,
+      "tabs_count": 9,
+      "sidebar_visible": true,
+      "horizontal_overflow": false,
+      "status": "PASS"
+    },
+    "laptop_1366x768": {
+      "width": 1366,
+      "height": 768,
+      "desc": "Standard Laptop",
+      "screenshot": "01_initial_state_laptop_1366x768.png",
+      "header_visible": true,
+      "tabs_count": 9,
+      "sidebar_visible": true,
+      "horizontal_overflow": false,
+      "status": "PASS"
+    },
+    "compact_720p": {
+      "width": 1280,
+      "height": 720,
+      "desc": "Compact HD 720p",
+      "screenshot": "01_initial_state_compact_720p.png",
+      "header_visible": true,
+      "tabs_count": 9,
+      "sidebar_visible": true,
+      "horizontal_overflow": false,
+      "status": "PASS"
+    },
+    "tablet_portrait": {
+      "width": 768,
+      "height": 1024,
+      "desc": "Tablet Portrait Touch",
+      "screenshot": "01_initial_state_tablet_portrait.png",
+      "header_visible": true,
+      "tabs_count": 9,
+      "sidebar_visible": true,
+      "horizontal_overflow": false,
+      "status": "PASS"
+    },
+    "mobile_390x844": {
+      "width": 390,
+      "height": 844,
+      "desc": "Mobile Portrait (iPhone 14/15)",
+      "screenshot": "01_initial_state_mobile_390x844.png",
+      "header_visible": true,
+      "tabs_count": 9,
+      "sidebar_visible": true,
+      "horizontal_overflow": false,
+      "status": "PASS"
+    }
+  },
+  "workflows": {
+    "workflow_1_single_spectrum": {
+      "file": "caffeine_spectrum.csv",
+      "plot_rendered": true,
+      "metrics_detected": true,
+      "screenshots": [
+        "02_workflow1_caffeine_spectrum.png",
+        "03_workflow1_data_metrics_table.png"
+      ],
+      "status": "PASS"
+    },
+    "workflow_4_derivatives": {
+      "tested_orders": [
+        "0D",
+        "2D",
+        "4D"
+      ],
+      "noise_warning_verified": true,
+      "screenshot": "04_workflow4_derivatives_tab.png",
+      "status": "PASS"
+    },
+    "workflow_2_calibration": {
+      "dataset": "calibration_table.csv standards",
+      "metrics_count": 11,
+      "mw_entered": 194.19,
+      "screenshot": "05_workflow2_calibration_tab.png",
+      "status": "PASS"
+    },
+    "workflow_5_project_roundtrip": {
+      "project_file": "roundtrip_test_project.uvvisproj",
+      "project_size_bytes": 5255,
+      "restored_notification": true,
+      "screenshots": [
+        "07_workflow5_project_export_tab.png",
+        "10_workflow5_project_reloaded_state.png"
+      ],
+      "status": "PASS"
+    },
+    "workflow_3_multi_overlay": {
+      "dataset": "standards_series.csv",
+      "traces_count": 4,
+      "trace_names": [
+        "standards_series",
+        "standards_series \u00b7 Std_5.0ug_mL",
+        "standards_series \u00b7 Std_10.0ug_mL",
+        "standards_series \u00b7 Std_20.0ug_mL"
+      ],
+      "screenshot": "08_workflow3_multi_standards_overlay.png",
+      "status": "PASS"
+    },
+    "workflow_6_chemometrics": {
+      "samples_analyzed": 4,
+      "plots_rendered": 7,
+      "pca_decomposition_active": true,
+      "screenshot": "06_workflow6_chemometrics_suite.png",
+      "status": "PASS"
+    },
+    "workflow_7_corrupted_file": {
+      "file": "corrupted_spectrum.txt",
+      "error_displayed": true,
+      "app_unbroken": true,
+      "screenshot": "09_workflow7_corrupt_file_error.png",
+      "status": "PASS"
+    }
+  },
+  "timestamp": "2026-09-22T15:14:49Z"
+}

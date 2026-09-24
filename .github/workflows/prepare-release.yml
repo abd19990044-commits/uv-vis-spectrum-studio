@@ -1,17 +1,14 @@
-name: Publish v3.1.0 Release
+name: Prepare Draft Release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/release-v3.1.0.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
   actions: write
 
 concurrency:
-  group: publish-v3.1.0-dispatch
+  group: prepare-v3.1.1-dispatch
   cancel-in-progress: true
 
 jobs:
@@ -19,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      TAG: v3.1.0
-      VERSION: 3.1.0
+      TAG: v3.1.1
+      VERSION: 3.1.1
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout repository
@@ -37,11 +34,11 @@ jobs:
           from pathlib import Path
           data = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
           version = data['project']['version']
-          if version != '3.1.0':
-              raise SystemExit(f'Expected project version 3.1.0, found {version}')
+          if version != '3.1.1':
+              raise SystemExit(f'Expected project version 3.1.1, found {version}')
           PY
           test -f REFERENCES.md
-          grep -q "## 3.1.0" CHANGELOG.md
+          grep -q "## 3.1.1" CHANGELOG.md
           python tools/validate_release_metadata.py
 
       - name: Resolve immutable release tag
@@ -73,7 +70,7 @@ jobs:
           import tomllib
           from pathlib import Path
           version = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version']
-          assert version == '3.1.0', version
+          assert version == '3.1.1', version
           PY
           test -f REFERENCES.md
           grep -q "weighted linear calibration" CHANGELOG.md
@@ -90,7 +87,7 @@ jobs:
               --target "$release_sha" \
               --title "UV-Vis Spectrum Studio ${TAG}" \
               --notes-file - <<'EOF'
-          # UV-Vis Spectrum Studio v3.1.0
+          # UV-Vis Spectrum Studio v3.1.1
 
           Cross-platform scientific spectroscopy release with Windows, Linux, macOS, and Python distributions.
 
@@ -166,12 +163,11 @@ jobs:
           require_match 'macOS.*x86_64.*\.dmg$|x86_64.*macOS.*\.dmg$' 'macOS Intel DMG'
           require_match 'macOS.*arm64.*\.dmg$|arm64.*macOS.*\.dmg$' 'macOS Apple Silicon DMG'
           require_match '\.whl$' 'Python wheel'
-          require_match 'uvvis_spectrum_studio-3\.1\.0\.tar\.gz$' 'Python source distribution'
+          require_match 'uvvis_spectrum_studio-3\.1\.1\.tar\.gz$' 'Python source distribution'
           require_match '\.sha256$|SHA256' 'release checksum files'
 
-      - name: Publish GitHub Release
+      - name: Report draft release for final review
         shell: bash
         run: |
           set -euo pipefail
-          gh release edit "${TAG}" --draft=false --latest
-          gh release view "${TAG}" --json url,isDraft,isLatest,tagName,name
+          gh release view "${TAG}" --json url,isDraft,tagName,name

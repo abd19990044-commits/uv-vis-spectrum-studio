@@ -43,6 +43,8 @@ def _finite_xy(x, y) -> tuple[np.ndarray, np.ndarray]:
         sums = np.bincount(inverse, weights=y)
         counts = np.bincount(inverse)
         x, y = unique, sums / counts
+    if x.size < 2:
+        raise ValueError("A project spectrum needs at least two distinct wavelengths.")
     return x, y
 
 
@@ -195,11 +197,13 @@ def _verify_manifest(archive: zipfile.ZipFile, names: set[str], *, required: boo
         manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("Project integrity manifest is invalid.") from exc
-    if manifest.get("algorithm") != "SHA-256":
+    if not isinstance(manifest, dict) or manifest.get("algorithm") != "SHA-256":
         raise ValueError("Unsupported project integrity algorithm.")
     members = manifest.get("members")
     if not isinstance(members, dict) or not members:
         raise ValueError("Project integrity manifest contains no member hashes.")
+    if set(members) != names - {"manifest.json"}:
+        raise ValueError("Project integrity manifest must cover every project member.")
     for member, expected in members.items():
         if member == "manifest.json":
             raise ValueError("Integrity manifest must not hash itself.")
@@ -277,6 +281,69 @@ def project_bytes(
     return bio.getvalue()
 
 
+def _validate_zip_archive(
+    archive: zipfile.ZipFile,
+    *,
+    max_members: int = 1000,
+    max_total_uncompressed_bytes: int = 100 * 1024 * 1024,
+) -> None:
+    """Validate archive structure against path traversal and decompression bombs."""
+    infos = archive.infolist()
+    if len({info.filename for info in infos}) != len(infos):
+        raise ValueError("Project archive contains duplicate member names.")
+    if len(infos) > max_members:
+        raise ValueError(f"Project archive contains too many files ({len(infos)} > {max_members}).")
+    total_uncompressed = 0
+    for info in infos:
+        name = info.filename
+        if (
+            ".." in name
+            or name.startswith("/")
+            or name.startswith("\\")
+            or ":" in name
+            or os.path.isabs(name)
+        ):
+            raise ValueError(f"Unsafe path detected in project archive: {name}")
+        if any(ord(c) < 32 or ord(c) == 127 for c in name):
+            raise ValueError(f"Invalid character in archive member name: {name}")
+        total_uncompressed += info.file_size
+        if total_uncompressed > max_total_uncompressed_bytes:
+            raise ValueError("Project archive exceeds allowable uncompressed size limit.")
+
+
+def _validated_spectrum_arrays(payload: bytes, remaining_bytes: int):
+    """Inspect the nested NPZ and NPY headers before NumPy allocates arrays."""
+    try:
+        with zipfile.ZipFile(BytesIO(payload)) as inner:
+            _validate_zip_archive(inner, max_members=2,
+                                  max_total_uncompressed_bytes=remaining_bytes)
+            if set(inner.namelist()) != {"x.npy", "y.npy"}:
+                raise ValueError("A spectrum archive must contain exactly x/y arrays.")
+            decoded_bytes = 0
+            for info in inner.infolist():
+                with inner.open(info) as member:
+                    version = np.lib.format.read_magic(member)
+                    if version == (1, 0):
+                        shape, fortran, dtype = np.lib.format.read_array_header_1_0(member)
+                    elif version == (2, 0):
+                        shape, fortran, dtype = np.lib.format.read_array_header_2_0(member)
+                    else:
+                        raise ValueError("Unsupported spectrum array format.")
+                    if len(shape) != 1 or not 2 <= shape[0] <= 1_000_000:
+                        raise ValueError("Spectrum arrays must be 1D with 2–1,000,000 points.")
+                    if dtype.kind not in "fiu" or dtype.itemsize > 8:
+                        raise ValueError("Spectrum arrays must contain real numeric data.")
+                    size = shape[0] * dtype.itemsize
+                    if info.file_size - member.tell() != size:
+                        raise ValueError("Spectrum array size does not match its header.")
+                    decoded_bytes += size
+        with np.load(BytesIO(payload), allow_pickle=False) as arr:
+            x, y = _finite_xy(arr["x"], arr["y"])
+        return x, y, decoded_bytes
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Invalid nested spectrum archive.") from exc
+
+
 def load_project(data: bytes) -> dict:
     try:
         archive = zipfile.ZipFile(BytesIO(data), "r")
@@ -284,6 +351,7 @@ def load_project(data: bytes) -> dict:
         raise ValueError("The selected file is not a valid UV-Vis Spectrum Studio project.") from exc
 
     with archive as z:
+        _validate_zip_archive(z)
         names = set(z.namelist())
         if "project.json" not in names:
             raise ValueError("The project archive does not contain project.json.")
@@ -291,7 +359,7 @@ def load_project(data: bytes) -> dict:
             meta = json.loads(z.read("project.json").decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ValueError("project.json is not valid UTF-8 JSON.") from exc
-        if meta.get("format") != PROJECT_FORMAT:
+        if not isinstance(meta, dict) or meta.get("format") != PROJECT_FORMAT:
             raise ValueError("Not a UV-Vis Spectrum Studio project file.")
         version = int(meta.get("version", 1))
         if version > PROJECT_VERSION:
@@ -302,7 +370,17 @@ def load_project(data: bytes) -> dict:
         integrity = _verify_manifest(z, names, required=version >= 4)
 
         spectra = []
-        for item in meta.get("spectra", []):
+        items = meta.get("spectra", [])
+        if not isinstance(items, list) or len(items) > 500:
+            raise ValueError("Project spectra must be a list of at most 500 entries.")
+        if not isinstance(meta.get("settings", {}), dict):
+            raise ValueError("Project settings must be an object.")
+        from .workspace_state import validate_settings
+        validate_settings(meta.get("settings", {}))
+        remaining_bytes = 100 * 1024 * 1024
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValueError("Invalid spectrum metadata.")
             member = item.get("file")
             if not member or member not in names:
                 raise ValueError("A spectrum referenced by project.json is missing from the project archive.")
@@ -310,10 +388,8 @@ def load_project(data: bytes) -> dict:
             stored_hash = item.get("stored_sha256")
             if stored_hash and _hash_bytes(payload).lower() != str(stored_hash).lower():
                 raise ValueError(f"Stored spectrum hash does not match for {member}.")
-            with np.load(BytesIO(payload), allow_pickle=False) as arr:
-                if "x" not in arr or "y" not in arr:
-                    raise ValueError("A project spectrum does not contain x/y arrays.")
-                x, y = _finite_xy(arr["x"], arr["y"])
+            x, y, decoded_bytes = _validated_spectrum_arrays(payload, remaining_bytes)
+            remaining_bytes -= decoded_bytes
             spectra.append(
                 {
                     "name": item.get("name", "Spectrum"),

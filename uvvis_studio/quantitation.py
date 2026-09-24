@@ -50,10 +50,62 @@ class WeightedCalibrationResult:
 
 
 def _finite_xy(x, y):
-    x = np.asarray(x, dtype=float)
-    y = np.asarray(y, dtype=float)
+    x = np.asarray(x, dtype=float).reshape(-1)
+    y = np.asarray(y, dtype=float).reshape(-1)
+    if x.size != y.size:
+        raise ValueError("Concentrations and responses must have equal length.")
     m = np.isfinite(x) & np.isfinite(y)
     return x[m], y[m]
+
+
+def independent_blank_statistics(responses) -> dict[str, float | int]:
+    """Sample SD for independently prepared and measured blank responses."""
+    values = np.asarray(responses, dtype=float).reshape(-1)
+    values = values[np.isfinite(values)]
+    if values.size < 3:
+        raise ValueError("At least three independent blank preparations are required.")
+    sd = float(np.std(values, ddof=1))
+    if sd <= 0:
+        raise ValueError("Blank SD is zero; LOD/LOQ cannot be estimated from these readings.")
+    return {"n": int(values.size), "mean": float(np.mean(values)), "sd": sd}
+
+
+def calculate_molar_absorptivity(
+    slope: float,
+    path_length_cm: float = 1.0,
+    molecular_weight_g_mol: float | None = None,
+    concentration_unit: str = "µg/mL",
+) -> float | None:
+    """Calculate molar absorptivity epsilon (L/(mol*cm)) from calibration slope."""
+    l = float(path_length_cm)
+    if l <= 0 or not np.isfinite(l):
+        return None
+    s = float(slope)
+    if not np.isfinite(s):
+        return None
+    unit = str(concentration_unit).strip()
+
+    # Molar concentration units (MW not required)
+    if unit in {"mol/L", "M"}:
+        return float(s / l)
+    if unit in {"mmol/L", "mM"}:
+        return float((s * 1000.0) / l)
+    if unit in {"µmol/L", "umol/L", "µM", "uM"}:
+        return float((s * 1.0e6) / l)
+    if unit in {"nmol/L", "nM"}:
+        return float((s * 1.0e9) / l)
+
+    # Mass concentration units (MW in g/mol required)
+    if molecular_weight_g_mol and molecular_weight_g_mol > 0 and np.isfinite(molecular_weight_g_mol):
+        mw = float(molecular_weight_g_mol)
+        if unit in {"g/L", "mg/mL"}:
+            return float((s * mw) / l)
+        if unit in {"µg/mL", "ug/mL", "mg/L"}:
+            return float((s * mw * 1000.0) / l)
+        if unit in {"ng/mL", "µg/L", "ug/L"}:
+            return float((s * mw * 1.0e6) / l)
+
+    return None
 
 
 def linear_calibration(
@@ -75,20 +127,18 @@ def linear_calibration(
     predicted = fit.intercept + fit.slope * x
     residuals = y - predicted
     syx = float(np.sqrt(np.sum(residuals**2) / max(len(x) - 2, 1)))
-    sigma_use = syx if sigma is None else abs(float(sigma))
+    sigma_use = syx if sigma is None else float(sigma)
+    if not np.isfinite(sigma_use) or sigma_use < 0:
+        raise ValueError("sigma must be finite and nonnegative.")
     lod = 3.3 * sigma_use / abs(fit.slope) if fit.slope != 0 else None
     loq = 10.0 * sigma_use / abs(fit.slope) if fit.slope != 0 else None
 
-    epsilon = None
-    l = float(path_length_cm)
-    if molecular_weight_g_mol and molecular_weight_g_mol > 0 and l > 0:
-        mw = float(molecular_weight_g_mol)
-        if concentration_unit in {"µg/mL", "mg/L"}:
-            epsilon = float((fit.slope * mw / 0.001) / l)
-        elif concentration_unit == "mol/L":
-            epsilon = float(fit.slope / l)
-        elif concentration_unit == "mmol/L":
-            epsilon = float(fit.slope * 1000.0 / l)
+    epsilon = calculate_molar_absorptivity(
+        fit.slope,
+        path_length_cm=path_length_cm,
+        molecular_weight_g_mol=molecular_weight_g_mol,
+        concentration_unit=concentration_unit,
+    )
 
     return LinearCalibrationResult(
         float(fit.slope),
@@ -170,17 +220,18 @@ def weighted_linear_calibration(
         raw_y = np.asarray(response, dtype=float).reshape(-1)
         if not (raw_x.size == raw_y.size == raw_w.size):
             raise ValueError("concentration, response and custom_weights must have equal length.")
-        mask = np.isfinite(raw_x) & np.isfinite(raw_y) & np.isfinite(raw_w)
+        mask = np.isfinite(raw_x) & np.isfinite(raw_y)
         x, y, custom_weights = raw_x[mask], raw_y[mask], raw_w[mask]
 
     w = _calibration_weights(x, y, weighting, custom_weights=custom_weights)
-    X = np.column_stack([np.ones(len(x)), x])
-    xtwx = X.T @ (w[:, None] * X)
-    if np.linalg.cond(xtwx) > 1e14:
-        raise ValueError("Weighted calibration design matrix is numerically ill-conditioned.")
-
-    beta = np.linalg.solve(xtwx, X.T @ (w * y))
-    predicted = X @ beta
+    origin = float(np.average(x, weights=w))
+    span = float(np.ptp(x))
+    X = np.column_stack([np.ones(len(x)), (x - origin) / span])
+    root_w = np.sqrt(w)
+    scaled_beta = np.linalg.lstsq(X * root_w[:, None], y * root_w, rcond=None)[0]
+    beta = np.array([scaled_beta[0] - scaled_beta[1] * origin / span,
+                     scaled_beta[1] / span])
+    predicted = X @ scaled_beta
     residuals = y - predicted
     dof = len(x) - 2
     weighted_sse = float(np.sum(w * residuals**2))
@@ -189,10 +240,10 @@ def weighted_linear_calibration(
 
     ss_tot = float(np.sum((y - np.mean(y)) ** 2))
     ss_res = float(np.sum(residuals**2))
-    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 1.0
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
     y_wmean = float(np.average(y, weights=w))
     wss_tot = float(np.sum(w * (y - y_wmean) ** 2))
-    weighted_r2 = 1.0 - weighted_sse / wss_tot if wss_tot > 0 else 1.0
+    weighted_r2 = 1.0 - weighted_sse / wss_tot if wss_tot > 0 else float("nan")
 
     return WeightedCalibrationResult(
         slope=float(beta[1]),
@@ -225,13 +276,16 @@ def breusch_pagan_calibration_test(concentration, response) -> dict:
         raise ValueError("Calibration concentrations must not all be identical.")
 
     fit = linear_calibration(x, y)
-    e2 = np.asarray(fit.residuals, dtype=float) ** 2
-    Z = np.column_stack([np.ones(len(x)), x])
+    residual_scale = float(np.max(np.abs(fit.residuals)))
+    if residual_scale == 0:
+        raise ValueError("Residual variation is zero; variance diagnostic is undefined.")
+    e2 = (np.asarray(fit.residuals, dtype=float) / residual_scale) ** 2
+    Z = np.column_stack([np.ones(len(x)), (x - np.mean(x)) / np.ptp(x)])
     gamma = np.linalg.lstsq(Z, e2, rcond=None)[0]
     fitted_e2 = Z @ gamma
     ss_tot = float(np.sum((e2 - np.mean(e2)) ** 2))
     ss_res = float(np.sum((e2 - fitted_e2) ** 2))
-    aux_r2 = 0.0 if ss_tot <= np.finfo(float).eps else max(0.0, 1.0 - ss_res / ss_tot)
+    aux_r2 = 0.0 if ss_tot == 0 else max(0.0, 1.0 - ss_res / ss_tot)
     lm = float(len(x) * aux_r2)
     p_value = float(stats.chi2.sf(lm, 1))
     rho, rho_p = stats.spearmanr(np.abs(fit.residuals), fit.predicted)

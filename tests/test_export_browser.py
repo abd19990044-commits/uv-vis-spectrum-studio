@@ -29,3 +29,16 @@ def test_configure_publication_browser_falls_back_to_system_path(tmp_path, monke
 def test_system_browser_returns_none_when_path_has_no_supported_browser(monkeypatch):
     monkeypatch.setattr(export.shutil, "which", lambda name: None)
     assert export._system_browser() is None
+
+
+def test_configure_publication_browser_falls_back_to_standard_installed(tmp_path, monkeypatch):
+    fake_chrome = tmp_path / "chrome.exe"
+    fake_chrome.write_text("binary", encoding="utf-8")
+    monkeypatch.delenv("BROWSER_PATH", raising=False)
+    monkeypatch.setattr(export, "_runtime_roots", lambda: [])
+    monkeypatch.setattr(export, "_system_browser", lambda: None)
+    monkeypatch.setattr(export, "_standard_installed_browser", lambda: fake_chrome)
+
+    assert export.configure_publication_browser() == str(fake_chrome.resolve())
+    assert export.os.environ["BROWSER_PATH"] == str(fake_chrome.resolve())
+

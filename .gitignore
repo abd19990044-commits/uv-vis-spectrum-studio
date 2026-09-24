@@ -9,3 +9,6 @@ venv/
 *.png
 *.pdf
 *.svg
+.pytest_temp/
+.coverage
+*.egg-info/

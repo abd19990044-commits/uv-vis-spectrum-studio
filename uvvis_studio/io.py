@@ -25,18 +25,31 @@ def _decode_text(raw: bytes) -> tuple[str, str]:
 def _read_text(raw: bytes, name: str) -> pd.DataFrame:
     text, _encoding = _decode_text(raw)
     sample = text[:8192]
+    ext = Path(name).suffix.lower()
+    default_sep = "," if ext == ".csv" else ("\t" if ext == ".tsv" else None)
     try:
         dialect = csv.Sniffer().sniff(sample, delimiters=",;\t ")
         sep = dialect.delimiter
     except csv.Error:
-        sep = None
+        sep = default_sep
 
-    if sep == " ":
-        frame = pd.read_csv(StringIO(text), sep=r"\s+", engine="python")
-    elif sep:
-        frame = pd.read_csv(StringIO(text), sep=sep, engine="python")
+    # Parse without consuming the first observation as an inferred header.
+    # A fully numeric first row is data; otherwise it is the column header.
+    frame = pd.read_csv(StringIO(text), sep=r"\s+" if sep == " " else sep,
+                        engine="python", header=None)
+    first_numeric = pd.to_numeric(
+        frame.iloc[0].astype(str).str.strip().str.replace(",", ".", regex=False),
+        errors="coerce",
+    ).notna().all()
+    if first_numeric:
+        frame.columns = [f"Column {i + 1}" for i in range(frame.shape[1])]
     else:
-        frame = pd.read_csv(StringIO(text), sep=None, engine="python")
+        names = frame.iloc[0].astype(str).str.strip().tolist()
+        if len(set(names)) != len(names):
+            raise ValueError(f"{name}: duplicate column names; use unique headers.")
+        frame = frame.iloc[1:].reset_index(drop=True)
+        frame.columns = names
+    frame.attrs["header_detected"] = not bool(first_numeric)
 
     if frame.empty or frame.shape[1] < 2:
         raise ValueError(f"{name}: no usable two-column-or-more table was detected.")
@@ -77,12 +90,11 @@ def _numeric_series(series: pd.Series) -> pd.Series:
     return pd.to_numeric(series, errors="coerce")
 
 
-def detect_wavelength_column(df: pd.DataFrame, threshold: float = 200.0) -> str:
+def detect_wavelength_column(df: pd.DataFrame, threshold: float = 180.0) -> str:
     """Detect the most plausible wavelength column.
 
-    The user rule that the wavelength column begins at >=200 nm is preserved,
-    while monotonicity, plausible UV-Vis range, uniqueness and column naming are
-    used to rank candidates.
+    Monotonicity, plausible UV-Vis range, uniqueness and column naming are
+    used to rank candidates, including common scans beginning below 200 nm.
     """
     candidates: list[tuple[float, str]] = []
     for col in df.columns:
@@ -107,7 +119,7 @@ def detect_wavelength_column(df: pd.DataFrame, threshold: float = 200.0) -> str:
             score += 5.0
         candidates.append((score, str(col)))
     if not candidates:
-        raise ValueError("No wavelength column found with a first numeric value >= 200 nm.")
+        raise ValueError(f"No wavelength column found above the {threshold:g} nm threshold.")
     candidates.sort(reverse=True)
     return candidates[0][1]
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from scipy.integrate import trapezoid
 from scipy.optimize import curve_fit
 from scipy.special import wofz
 
@@ -136,7 +137,7 @@ def fit_peaks(x, y, centers, kind="Gaussian", baseline_order=1):
         parameters = popt[offset : offset + n_params]
         errors = standard_errors[offset : offset + n_params]
         curve = _component(x, kind, parameters)
-        area = float(np.trapezoid(curve, x))
+        area = float(trapezoid(curve, x))
         center = float(parameters[1])
         if kind == "Gaussian":
             fwhm = 2.354820045 * abs(float(parameters[2]))

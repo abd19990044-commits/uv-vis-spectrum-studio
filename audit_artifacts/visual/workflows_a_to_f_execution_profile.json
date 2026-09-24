@@ -1,0 +1,100 @@
+{
+  "workflows": {
+    "workflow_a_derivatives": {
+      "tested_order": "2D",
+      "screenshot": "wf_a_derivatives_0d_to_4d.png",
+      "download_button_present": true,
+      "status": "PASS"
+    },
+    "workflow_b_selected_range_auc": {
+      "range": "255.0 to 285.0 nm",
+      "expected_auc": 11.175,
+      "verified_in_ui": true,
+      "metrics": [
+        "Selected Interval\n\n255.00 \u2013 285.00 nm",
+        "Signed AUC (Abs\u00b7nm)\n\n11.175",
+        "Absolute AUC (Abs\u00b7nm)\n\n11.175",
+        "Integration Method\n\nTrapezoidal (Interpolated)",
+        "Derivative UnitAbs",
+        "DC Component0.30111",
+        "Dominant Frequency0.02222 cycles/nm",
+        "Dominant Spatial Period45 nm",
+        "Nyquist Frequency0.1 cycles/nm",
+        "Noise SD Estimate \u03c30",
+        "Applied Threshold \u03bb0",
+        "Decomposition Level0",
+        "Maximum raw signal0.52",
+        "Minimum raw signal0.12",
+        "Absorbance QCacceptable"
+      ],
+      "screenshot": "wf_b_selected_range_auc_11_175.png",
+      "status": "PASS"
+    },
+    "workflow_c_fourier_transform": {
+      "dataset": "sinusoidal_spectrum.csv",
+      "detected_period_50nm": true,
+      "metrics": [
+        "Selected Interval200.00 \u2013 800.00 nm",
+        "Signed AUC (Abs\u00b7nm)300",
+        "Absolute AUC (Abs\u00b7nm)300",
+        "Integration MethodTrapezoidal (Interpolated)",
+        "Derivative UnitAbs",
+        "DC Component\n\n0.5",
+        "Dominant Frequency\n\n0.01998 cycles/nm",
+        "Dominant Spatial Period\n\n50.04 nm",
+        "Nyquist Frequency\n\n1 cycles/nm",
+        "Noise SD Estimate \u03c33.2663e-05",
+        "Applied Threshold \u03bb0.000123",
+        "Decomposition Level7",
+        "Maximum raw signal0.938906",
+        "Minimum raw signal0.0610938",
+        "Absorbance QCacceptable"
+      ],
+      "screenshot": "wf_c_fft_spatial_frequency_50nm.png",
+      "status": "PASS"
+    },
+    "workflow_d_wavelet_denoising": {
+      "dataset": "noisy_caffeine_spectrum.csv",
+      "metrics": [
+        "Selected Interval200.00 \u2013 800.00 nm",
+        "Signed AUC (Abs\u00b7nm)56.8861",
+        "Absolute AUC (Abs\u00b7nm)60.5591",
+        "Integration MethodTrapezoidal (Interpolated)",
+        "Derivative UnitAbs",
+        "DC Component0.18934",
+        "Dominant Frequency0.003328 cycles/nm",
+        "Dominant Spatial Period300.5 nm",
+        "Nyquist Frequency1 cycles/nm",
+        "Noise SD Estimate \u03c3\n\n0.033666",
+        "Applied Threshold \u03bb\n\n0.12044",
+        "Decomposition Level\n\n6",
+        "Maximum raw signal0.886574",
+        "Minimum raw signal-0.0865049",
+        "Absorbance QCacceptable"
+      ],
+      "export_button_present": true,
+      "screenshot": "wf_d_wavelet_dwt_cwt_denoising.png",
+      "status": "PASS"
+    },
+    "workflow_e_chemometrics": {
+      "dataset": "chemometrics_multivariate_dataset.csv",
+      "samples_verified": 10,
+      "pca_plots_present": true,
+      "screenshot": "wf_e_chemometrics_pca_scores.png",
+      "status": "PASS"
+    },
+    "workflow_f_labsolutions_workstation": {
+      "dataset": "caffeine_spectrum.csv",
+      "manual_x_range": "230.0 - 310.0 nm",
+      "labsolutions_controls_active": true,
+      "export_buttons": {
+        "png": false,
+        "svg": false,
+        "pdf": false
+      },
+      "screenshot": "wf_f_labsolutions_hero_workstation.png",
+      "status": "PASS"
+    }
+  },
+  "timestamp": "2026-09-22T22:31:05Z"
+}

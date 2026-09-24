@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 env:
-  RELEASE_VERSION: "3.1.0"
+  RELEASE_VERSION: "3.1.1"
 
 jobs:
   build-windows-installer:
@@ -83,7 +83,7 @@ jobs:
           )
           $lines | Set-Content -Path "uvvis_studio/build_info.py" -Encoding UTF8
           python -m py_compile uvvis_studio/build_info.py
-          python -m pip freeze | Sort-Object | Set-Content -Path "build_assets/requirements-lock-v3.1.0.txt" -Encoding UTF8
+          python -m pip freeze | Sort-Object | Set-Content -Path "build_assets/requirements-lock-v3.1.1.txt" -Encoding UTF8
 
       - name: Run scientific tests
         shell: pwsh
@@ -199,7 +199,7 @@ jobs:
           Copy-Item -Path "dist/UV-Vis Spectrum Studio/*" -Destination "portable/UV-Vis Spectrum Studio" -Recurse -Force
           Copy-Item README.md,LICENSE,LICENSE-NOTICE.md,CITATION.cff,CHANGELOG.md -Destination "portable" -Force
           New-Item -ItemType Directory -Force -Path "installer_output" | Out-Null
-          $zip = "installer_output/UVVis_Spectrum_Studio_v3.1.0_Windows_x64_Portable.zip"
+          $zip = "installer_output/UVVis_Spectrum_Studio_v3.1.1_Windows_x64_Portable.zip"
           Compress-Archive -Path "portable/*" -DestinationPath $zip -CompressionLevel Optimal -Force
           (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256"
 
@@ -226,7 +226,7 @@ jobs:
           if ($null -eq (Get-AuthenticodeSignature $installer).SignerCertificate) { throw "Installer was not signed." }
           (Get-FileHash $installer -Algorithm SHA256).Hash | Set-Content "installer_output/UVVis_Spectrum_Studio_Setup.sha256"
           @"
-          UV-Vis Spectrum Studio 3.1.0
+          UV-Vis Spectrum Studio 3.1.1
           Git commit: ${{ github.sha }}
           Git ref: ${{ github.ref }}
           Runner OS: $env:RUNNER_OS
@@ -238,15 +238,15 @@ jobs:
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-Windows-v3.1.0
+          name: UVVis-Spectrum-Studio-Windows-v3.1.1
           path: |
             installer_output/UVVis_Spectrum_Studio_Setup.exe
             installer_output/UVVis_Spectrum_Studio_Setup.sha256
-            installer_output/UVVis_Spectrum_Studio_v3.1.0_Windows_x64_Portable.zip
-            installer_output/UVVis_Spectrum_Studio_v3.1.0_Windows_x64_Portable.zip.sha256
+            installer_output/UVVis_Spectrum_Studio_v3.1.1_Windows_x64_Portable.zip
+            installer_output/UVVis_Spectrum_Studio_v3.1.1_Windows_x64_Portable.zip.sha256
             installer_output/BUILD-INFO-Windows-x64.txt
             build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer
-            build_assets/requirements-lock-v3.1.0.txt
+            build_assets/requirements-lock-v3.1.1.txt
           if-no-files-found: warn
           retention-days: 30
 
@@ -262,7 +262,7 @@ jobs:
             gh release create $tag --draft --target "${{ github.sha }}" --title "UV-Vis Spectrum Studio $tag" --notes "Draft scientific software release. Publish only after all platform builds, checksums, metadata, and release QA are complete. Publishing the release is the Zenodo archival gate."
           }
           Get-ChildItem "installer_output/*" -File | ForEach-Object { gh release upload $tag $_.FullName --clobber }
-          gh release upload $tag "build_assets/requirements-lock-v3.1.0.txt" --clobber
+          gh release upload $tag "build_assets/requirements-lock-v3.1.1.txt" --clobber
           if (Test-Path "build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer") {
             gh release upload $tag "build_assets/ABDULSALAM_S_HASAN_CodeSigning.cer" --clobber
           }

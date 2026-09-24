@@ -4,6 +4,21 @@ All notable changes to UV-Vis Spectrum Studio are documented here.
 
 The project follows semantic versioning for public releases where practical.
 
+## 3.1.1 — 2026-09-24
+
+- Correct spectral integration dimensions, zero-crossing absolute area and centroid integration.
+- Stabilize OLS/WLS, Mandel, Breusch–Pagan and inverse prediction across measurement units.
+- Report undefined lack-of-fit inference for zero pure error and undefined R² for constant responses.
+- Add independent blank statistics and calibration diagnostics to the research workflow.
+- Bound PLS/PCR components to training-fold rank; correct SPXY scaling and duplicate split indices.
+- Preserve first observations in headerless text files and support scans beginning at 190 nm.
+- Validate nested array headers, decompressed sizes, complete integrity manifests and widget settings.
+- Repair comparison view, AUC callbacks, units, project restoration and stale export invalidation.
+- Preserve typography proportions in raster exports and automatic physical axis titles.
+- Require Pillow 12.3 or newer after dependency auditing.
+- Repair installed entry point; add scientific, archive and actual-browser regression gates.
+- Record release evidence and pending native desktop qualification separately.
+
 ## 3.1.0 — 2026-09-17
 
 ### Scientific hardening

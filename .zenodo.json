@@ -11,7 +11,7 @@
   "description": "UV-Vis Spectrum Studio is open-source, cross-platform scientific software for UV-Vis spectroscopy and analytical chemistry. It provides robust spectral import and cleaning, publication-quality visualization, derivative spectroscopy through fourth order with numerical and spectroscopic quality safeguards, quantitative calibration and analytical-method validation, multicomponent spectrophotometry, peak fitting and deconvolution, Fourier and wavelet analysis, chemometrics with fold-safe supervised preprocessing and nested PLS validation, and reproducible tamper-evident UVVISPROJ project archives. Release workflows produce tested platform-specific desktop distributions, source/Python distributions, checksums, dependency snapshots, and build provenance.",
   "access_right": "open",
   "license": "mit",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "publication_date": "2026-09-17",
   "language": "eng",
   "keywords": [

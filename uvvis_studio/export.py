@@ -68,6 +68,60 @@ def _system_browser() -> Path | None:
     return None
 
 
+def _standard_installed_browser() -> Path | None:
+    """Check standard operating system installation directories for Chrome, Edge, or Brave.
+
+    On Windows, Chrome and Edge are installed in Program Files or LocalAppData and are
+    typically not included on system PATH. Checking these standard locations ensures
+    flawless raster and vector figure export without requiring manual BROWSER_PATH setup.
+    """
+    candidates: list[Path] = []
+    if sys.platform.startswith("win"):
+        prog_files = [
+            os.environ.get("ProgramFiles", r"C:\Program Files"),
+            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+        ]
+        local_app = os.environ.get("LocalAppData", "")
+        for pf in prog_files:
+            if pf:
+                candidates.append(Path(pf) / "Google" / "Chrome" / "Application" / "chrome.exe")
+                candidates.append(Path(pf) / "Microsoft" / "Edge" / "Application" / "msedge.exe")
+                candidates.append(Path(pf) / "BraveSoftware" / "Brave-Browser" / "Application" / "brave.exe")
+        if local_app:
+            candidates.append(Path(local_app) / "Google" / "Chrome" / "Application" / "chrome.exe")
+            candidates.append(Path(local_app) / "Microsoft" / "Edge" / "Application" / "msedge.exe")
+            pw_path = Path(local_app) / "ms-playwright"
+            if pw_path.is_dir():
+                try:
+                    candidates.extend(pw_path.glob("**/chrome.exe"))
+                except OSError:
+                    pass
+    elif sys.platform == "darwin":
+        candidates.extend([
+            Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+            Path("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
+            Path("/Applications/Chromium.app/Contents/MacOS/Chromium"),
+            Path("/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"),
+        ])
+    else:  # Linux / Unix
+        candidates.extend([
+            Path("/usr/bin/google-chrome"),
+            Path("/usr/bin/google-chrome-stable"),
+            Path("/usr/bin/chromium"),
+            Path("/usr/bin/chromium-browser"),
+            Path("/snap/bin/chromium"),
+            Path("/usr/bin/microsoft-edge"),
+        ])
+
+    for c in candidates:
+        try:
+            if c.is_file():
+                return c.resolve()
+        except OSError:
+            continue
+    return None
+
+
 def _extract_macos_browser_archive(archive: Path) -> Path | None:
     """Extract the opaque macOS Chrome ZIP outside the PyInstaller bundle.
 
@@ -108,8 +162,9 @@ def configure_publication_browser() -> str | None:
     """Configure Kaleido/Choreographer to use an available compatible browser.
 
     Preference order is an explicit ``BROWSER_PATH``, a browser bundled with the
-    desktop release, the lazily extracted macOS browser archive, then a compatible
-    browser installed on the host and discoverable on ``PATH``.
+    desktop release, the lazily extracted macOS browser archive, a compatible
+    browser installed on the host and discoverable on ``PATH``, and finally standard
+    system installation directories.
     """
     existing = os.environ.get("BROWSER_PATH")
     if existing:
@@ -138,35 +193,50 @@ def configure_publication_browser() -> str | None:
         resolved = str(browser)
         os.environ["BROWSER_PATH"] = resolved
         return resolved
+
+    installed_browser = _standard_installed_browser()
+    if installed_browser is not None:
+        resolved = str(installed_browser)
+        os.environ["BROWSER_PATH"] = resolved
+        return resolved
+
     return None
 
 
-def _to_image(fig: go.Figure, *, fmt: str, width: int, height: int) -> bytes:
-    configure_publication_browser()
+def _to_image(fig: go.Figure, *, fmt: str, width: float, height: float, scale: float = 1) -> bytes:
+    browser = configure_publication_browser()
     try:
-        return fig.to_image(format=fmt, width=width, height=height, scale=1)
+        return fig.to_image(format=fmt, width=width, height=height, scale=scale)
     except Exception as exc:
+        details = f" (detected browser: {browser})" if browser else " (no browser executable located)"
         raise RuntimeError(
-            "Publication image export requires a compatible Chrome/Chromium browser for Kaleido. "
-            "Windows and Linux x86_64 release bundles include one; macOS releases extract their bundled browser "
-            "on first export. On Linux ARM64, install a compatible Chromium/Chrome build and, if it is not on PATH, "
-            "set BROWSER_PATH to the browser executable."
+            f"Publication image export failed{details}: {exc}. "
+            "Please ensure a compatible Chrome, Edge, or Chromium browser is installed or set BROWSER_PATH."
         ) from exc
 
 
 def figure_png_bytes(fig: go.Figure, width_in: float, height_in: float, dpi: int = 600) -> bytes:
-    if dpi < 72:
-        raise ValueError("DPI must be at least 72.")
+    import math
+    if not all(math.isfinite(v) and v > 0 for v in (width_in, height_in, dpi)):
+        raise ValueError("Figure dimensions and DPI must be positive finite numbers.")
+    if not 72 <= dpi <= 1200:
+        raise ValueError("DPI must be between 72 and 1200.")
     width_px = max(100, int(round(width_in * dpi)))
     height_px = max(100, int(round(height_in * dpi)))
-    raw = _to_image(fig, fmt="png", width=width_px, height=height_px)
-    im = Image.open(BytesIO(raw))
+    if width_px * height_px > 40_000_000:
+        raise ValueError("Raster export exceeds 40 megapixels. Reduce dimensions or DPI.")
+    # Match the SVG/PDF layout; DPI scales text and strokes as well as pixels.
+    raw = _to_image(fig, fmt="png", width=width_in * 96, height=height_in * 96, scale=dpi / 96)
+    im = Image.open(BytesIO(raw), formats=["PNG"])
     out = BytesIO()
     im.save(out, format="PNG", dpi=(dpi, dpi), optimize=True)
     return out.getvalue()
 
 
 def figure_vector_bytes(fig: go.Figure, fmt: str, width_in: float, height_in: float) -> bytes:
+    import math
+    if not all(math.isfinite(v) and 0 < v <= 40 for v in (width_in, height_in)):
+        raise ValueError("Vector figure dimensions must be between 0 and 40 inches.")
     fmt = str(fmt).lower()
     if fmt not in {"svg", "pdf"}:
         raise ValueError("Vector export format must be SVG or PDF.")

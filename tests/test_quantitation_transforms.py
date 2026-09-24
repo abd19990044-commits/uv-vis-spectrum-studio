@@ -1,5 +1,5 @@
 import numpy as np
-from uvvis_studio.quantitation import linear_calibration, standard_addition, job_method, mole_ratio_method, isosbestic_points
+from uvvis_studio.quantitation import independent_blank_statistics, linear_calibration, standard_addition, job_method, mole_ratio_method, isosbestic_points
 from uvvis_studio.transforms import fft_analysis, wavelet_denoise
 
 
@@ -9,6 +9,19 @@ def test_linear_calibration_and_epsilon():
     assert abs(r.slope-0.2)<1e-12 and r.r2>0.999999
     assert abs(r.epsilon_L_mol_cm-40000)<1e-8
     assert r.lod is not None and r.loq is not None
+
+
+def test_independent_blank_sigma_and_invalid_calibration_pairs():
+    blanks = [0.0031, 0.0027, 0.0034, 0.0029, 0.0032,
+              0.0030, 0.0035, 0.0028, 0.0033, 0.0031]
+    summary = independent_blank_statistics(blanks)
+    assert summary["n"] == 10
+    assert np.isclose(summary["mean"], 0.0031)
+    assert np.isclose(summary["sd"], np.std(blanks, ddof=1))
+    with np.testing.assert_raises(ValueError):
+        linear_calibration([0, 1, 2], [0, 1])
+    with np.testing.assert_raises(ValueError):
+        linear_calibration([0, 1, 2], [0, 1, 2], sigma=-0.01)
 
 
 def test_standard_addition():

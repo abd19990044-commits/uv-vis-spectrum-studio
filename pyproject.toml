@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "uvvis-spectrum-studio"
-version = "3.1.0"
+version = "3.1.1"
 description = "Open-source UV-Vis spectroscopy analysis, validation, chemometrics, deconvolution, and reproducible scientific workflows"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,7 @@ dependencies = [
   "plotly>=6.0,<7",
   "openpyxl>=3.1,<4",
   "kaleido>=1.0,<2",
-  "Pillow>=11,<12",
+  "Pillow>=12.3,<13",
   "xlrd>=2.0,<3"
 ]
 keywords = [
@@ -63,4 +63,4 @@ include = ["uvvis_studio*"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --basetemp=.pytest_temp"

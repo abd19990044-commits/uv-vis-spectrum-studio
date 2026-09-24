@@ -22,3 +22,20 @@ def test_isosbestic_interpolation():
     assert pts
     assert abs(pts[0]["wavelength_nm"] - 300.25) < 1e-9
     assert abs(pts[0]["signal"]) < 1e-9
+def test_pls_component_limit_uses_smallest_cv_training_fold():
+    import numpy as np
+    from uvvis_studio.chemometrics_advanced import (
+        interval_pls, nested_pls_evaluation, optimize_pls_components,
+    )
+
+    rng = np.random.default_rng(81)
+    X = rng.normal(size=(8, 20))
+    y = X[:, 0] * 0.5 + rng.normal(scale=0.01, size=8)
+    wavelengths = np.linspace(200, 300, 20)
+    exploratory = optimize_pls_components(X, y, max_components=15, cv_folds=5)
+    assert max(row["components"] for row in exploratory["results"]) <= 6
+    nested = nested_pls_evaluation(X, y, max_components=15, outer_folds=3, inner_folds=3)
+    assert np.isfinite(nested["rmsep_nested"])
+    assert len(nested["predicted"]) == len(y)
+    intervals = interval_pls(X, y, wavelengths, n_intervals=2, n_components=15, cv_folds=5)
+    assert len(intervals["results"]) == 2

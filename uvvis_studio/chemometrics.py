@@ -302,8 +302,13 @@ def regression_analysis(
     if len(y) != X.shape[0] or not np.all(np.isfinite(y)):
         raise ValueError("Regression y must contain one finite value per sample.")
     folds = max(2, min(int(cv_folds), X.shape[0]))
+    smallest_train = X.shape[0] - int(np.ceil(X.shape[0] / folds))
+    if smallest_train < 2:
+        raise ValueError("Regression CV requires at least two training samples per fold.")
+    if model_name == "KNN" and smallest_train < 3:
+        raise ValueError("KNN requires at least three training samples per fold.")
     if model_name in {"PCR", "PLS"}:
-        n_components = max(1, min(int(n_components), X.shape[1], X.shape[0] - 1))
+        n_components = max(1, min(int(n_components), X.shape[1], smallest_train - 1))
     model = _with_preprocessing(_regressor(model_name, n_components), preprocessing)
     cv = KFold(n_splits=folds, shuffle=True, random_state=42)
     predicted = np.asarray(cross_val_predict(model, X, y, cv=cv)).reshape(-1)

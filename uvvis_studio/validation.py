@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import stats
 
+from .quantitation import calculate_molar_absorptivity
+
 
 @dataclass
 class LinearityValidation:
@@ -20,6 +22,7 @@ class LinearityValidation:
     predicted: np.ndarray
     lod_33: float | None
     loq_10: float | None
+    epsilon_L_mol_cm: float | None = None
 
 
 def _clean_xy(x, y) -> tuple[np.ndarray, np.ndarray]:
@@ -31,7 +34,15 @@ def _clean_xy(x, y) -> tuple[np.ndarray, np.ndarray]:
     return x[mask], y[mask]
 
 
-def linearity_validation(x, y, sigma: float | None = None) -> LinearityValidation:
+def linearity_validation(
+    x,
+    y,
+    sigma: float | None = None,
+    *,
+    molecular_weight_g_mol: float | None = None,
+    path_length_cm: float = 1.0,
+    concentration_unit: str = "µg/mL",
+) -> LinearityValidation:
     """Ordinary least-squares linearity statistics for analytical calibration.
 
     LOD and LOQ use 3.3*sigma/|S| and 10*sigma/|S|, respectively.  When
@@ -45,31 +56,39 @@ def linearity_validation(x, y, sigma: float | None = None) -> LinearityValidatio
             "At least three finite calibration levels with non-zero concentration range are required."
         )
 
-    X = np.column_stack([np.ones(len(x)), x])
-    beta = np.linalg.lstsq(X, y, rcond=None)[0]
-    predicted = X @ beta
+    # Center the calculation so a change from µg/mL to mol/L does not
+    # create an artificial condition-number failure in the intercept column.
+    dx = x - np.mean(x)
+    sxx = float(dx @ dx)
+    slope = float(dx @ (y - np.mean(y)) / sxx)
+    beta = np.array([np.mean(y) - slope * np.mean(x), slope])
+    predicted = np.mean(y) + slope * dx
     residuals = y - predicted
     dof = len(x) - 2
     syx = float(np.sqrt(np.sum(residuals**2) / dof))
 
-    xtx = X.T @ X
-    if np.linalg.cond(xtx) > 1e14:
-        raise ValueError("Calibration design matrix is numerically ill-conditioned.")
-    covariance = (syx**2) * np.linalg.inv(xtx)
-    intercept_se, slope_se = np.sqrt(np.diag(covariance))
+    slope_se = syx / np.sqrt(sxx)
+    intercept_se = syx * np.sqrt(1.0 / len(x) + np.mean(x)**2 / sxx)
     tcrit = float(stats.t.ppf(0.975, dof))
 
     ss_tot = float(np.sum((y - np.mean(y)) ** 2))
     ss_res = float(np.sum(residuals**2))
-    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 1.0
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
 
-    sigma_use = syx if sigma is None else abs(float(sigma))
-    if not np.isfinite(sigma_use):
-        raise ValueError("sigma must be finite.")
+    sigma_use = syx if sigma is None else float(sigma)
+    if not np.isfinite(sigma_use) or sigma_use < 0:
+        raise ValueError("sigma must be finite and nonnegative.")
     slope = float(beta[1])
     abs_slope = abs(slope)
     lod = 3.3 * sigma_use / abs_slope if abs_slope > 0 else None
     loq = 10.0 * sigma_use / abs_slope if abs_slope > 0 else None
+
+    epsilon = calculate_molar_absorptivity(
+        slope,
+        path_length_cm=path_length_cm,
+        molecular_weight_g_mol=molecular_weight_g_mol,
+        concentration_unit=concentration_unit,
+    )
 
     intercept = float(beta[0])
     return LinearityValidation(
@@ -88,6 +107,7 @@ def linearity_validation(x, y, sigma: float | None = None) -> LinearityValidatio
         predicted=predicted,
         lod_33=float(lod) if lod is not None else None,
         loq_10=float(loq) if loq is not None else None,
+        epsilon_L_mol_cm=epsilon,
     )
 
 
@@ -105,10 +125,14 @@ def mandel_fitting_test(x, y, alpha: float = 0.05) -> dict:
     if not 0 < float(alpha) < 1:
         raise ValueError("alpha must be between 0 and 1.")
 
-    p1 = np.polyfit(x, y, 1)
-    p2 = np.polyfit(x, y, 2)
-    r1 = y - np.polyval(p1, x)
-    r2 = y - np.polyval(p2, x)
+    if np.unique(x).size < 3:
+        raise ValueError("A quadratic comparison needs at least three distinct concentrations.")
+    line = np.polynomial.Polynomial.fit(x, y, 1)
+    quadratic = np.polynomial.Polynomial.fit(x, y, 2)
+    p1 = line.convert().coef[::-1]
+    p2 = quadratic.convert().coef[::-1]
+    r1 = y - line(x)
+    r2 = y - quadratic(x)
     ss1 = float(np.sum(r1**2))
     ss2 = float(np.sum(r2**2))
     df2 = len(x) - 3
@@ -116,11 +140,12 @@ def mandel_fitting_test(x, y, alpha: float = 0.05) -> dict:
         raise ValueError("Insufficient residual degrees of freedom for Mandel's fitting test.")
 
     improvement = max(ss1 - ss2, 0.0)
-    if ss2 <= np.finfo(float).eps:
-        f_value = float("inf") if improvement > np.finfo(float).eps else 0.0
+    roundoff_ss = 100 * len(y) * np.finfo(float).eps**2 * float(y @ y)
+    if ss2 <= roundoff_ss:
+        f_value = float("inf") if improvement > roundoff_ss else float("nan")
     else:
         f_value = float(improvement / (ss2 / df2))
-    p_value = float(stats.f.sf(f_value, 1, df2)) if np.isfinite(f_value) else 0.0
+    p_value = float(stats.f.sf(f_value, 1, df2))
     f_critical = float(stats.f.ppf(1.0 - float(alpha), 1, df2))
 
     return {
@@ -164,8 +189,8 @@ def inverse_prediction_interval(
         raise ValueError("confidence must be between 0 and 1.")
 
     fit = linearity_validation(x, y)
-    if abs(fit.slope) <= np.finfo(float).eps:
-        raise ValueError("Calibration slope is too close to zero for inverse prediction.")
+    if not np.isfinite(fit.slope) or fit.slope == 0:
+        raise ValueError("A finite nonzero calibration slope is required for inverse prediction.")
 
     y0 = float(unknown_response)
     if not np.isfinite(y0):
@@ -273,9 +298,12 @@ def lack_of_fit_test(concentration, response) -> dict:
     if df_pe <= 0 or df_lof <= 0:
         raise ValueError("Insufficient replicated data for lack-of-fit partitioning.")
     ss_lof = max(ss_res - ss_pe, 0.0)
-    f_value = (ss_lof / df_lof) / (ss_pe / df_pe) if ss_pe > 0 else np.inf
+    # No estimated pure-error variance means the F test is not estimable.
+    # Report unavailable, not p=0 (a false claim of significant lack of fit).
+    f_value = (ss_lof / df_lof) / (ss_pe / df_pe) if ss_pe > 0 else float("nan")
     p_value = float(stats.f.sf(f_value, df_lof, df_pe))
     return {
+        "status": "ok" if ss_pe > 0 else "undefined_zero_pure_error",
         "ss_pure_error": ss_pe,
         "ss_lack_of_fit": ss_lof,
         "df_pure_error": df_pe,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from scipy.spatial.distance import pdist, squareform
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, cross_val_predict
@@ -24,16 +25,27 @@ def _folds(n_samples: int, requested: int) -> int:
     return max(2, min(int(requested), n_samples))
 
 
+def _safe_pls_components(n_samples: int, n_variables: int, folds: int, requested: int) -> int:
+    """Largest feasible component count in every CV training fold."""
+    smallest_train = n_samples - int(np.ceil(n_samples / folds))
+    if smallest_train < 2:
+        raise ValueError("PLS cross-validation needs at least two training samples in every fold.")
+    return max(1, min(int(requested), n_variables, smallest_train - 1))
+
+
 def kennard_stone(X, n_train: int):
     X = np.asarray(X, dtype=float)
-    if X.ndim != 2 or len(X) < 3:
+    if X.ndim != 2 or len(X) < 3 or X.shape[1] == 0 or not np.all(np.isfinite(X)):
         raise ValueError("Kennard-Stone requires at least three samples.")
+    if len(X) > 5000:
+        raise ValueError("Distance-based splitting is limited to 5,000 samples.")
     n_train = max(2, min(int(n_train), len(X) - 1))
     centered = X - X.mean(axis=0)
     scale = X.std(axis=0, ddof=1)
     scale[scale == 0] = 1.0
     Z = centered / scale
-    distance = np.sqrt(((Z[:, None, :] - Z[None, :, :]) ** 2).sum(axis=2))
+    distance = squareform(pdist(Z))
+    np.fill_diagonal(distance, -np.inf)
     i, j = np.unravel_index(np.argmax(distance), distance.shape)
     selected = [int(i), int(j)]
     while len(selected) < n_train:
@@ -48,14 +60,18 @@ def spxy(X, y, n_train: int, alpha: float = 0.5):
     X, y = _as_xy(X, y)
     if not 0 <= float(alpha) <= 1:
         raise ValueError("alpha must be between 0 and 1.")
-    x_sd = X.std(axis=0, ddof=1)
-    x_sd[x_sd == 0] = 1.0
-    xs = (X - X.mean(axis=0)) / x_sd
-    y_sd = float(y.std(ddof=1))
-    ys = (y - y.mean()) / (y_sd if y_sd > 0 else 1.0)
-    dx = np.sqrt(((xs[:, None, :] - xs[None, :, :]) ** 2).sum(axis=2))
-    dy = np.abs(ys[:, None] - ys[None, :])
+    if len(X) > 5000:
+        raise ValueError("Distance-based splitting is limited to 5,000 samples.")
+    dx = squareform(pdist(X))
+    dy = np.abs(y[:, None] - y[None, :])
+    # SPXY normalizes each distance matrix by its maximum. Autoscaling
+    # individual X variables is a separate analyst preprocessing choice.
+    if dx.max() > 0:
+        dx /= dx.max()
+    if dy.max() > 0:
+        dy /= dy.max()
     distance = (1 - float(alpha)) * dx + float(alpha) * dy
+    np.fill_diagonal(distance, -np.inf)
     n_train = max(2, min(int(n_train), len(X) - 1))
     i, j = np.unravel_index(np.argmax(distance), distance.shape)
     selected = [int(i), int(j)]
@@ -75,8 +91,8 @@ def optimize_pls_components(X, y, max_components=15, cv_folds=5):
     approximately unbiased performance estimate after component selection.
     """
     X, y = _as_xy(X, y)
-    max_components = max(1, min(int(max_components), X.shape[1], len(X) - 1))
     cv = KFold(n_splits=_folds(len(X), cv_folds), shuffle=True, random_state=42)
+    max_components = _safe_pls_components(len(X), X.shape[1], cv.n_splits, max_components)
     rows = []
     for n_components in range(1, max_components + 1):
         model = PLSRegression(n_components=n_components, scale=True)
@@ -126,11 +142,11 @@ def nested_pls_evaluation(
 
     for fold, (train_idx, test_idx) in enumerate(outer.split(X), start=1):
         X_train, y_train = X[train_idx], y[train_idx]
-        maxc = max(1, min(int(max_components), X_train.shape[1], len(X_train) - 1))
         inner_n = _folds(len(X_train), inner_folds)
         if inner_n >= len(X_train):
             inner_n = max(2, len(X_train) - 1)
         inner = KFold(n_splits=inner_n, shuffle=True, random_state=random_state + fold)
+        maxc = _safe_pls_components(len(X_train), X_train.shape[1], inner_n, max_components)
 
         tuning = []
         for n_components in range(1, maxc + 1):
@@ -190,7 +206,7 @@ def y_randomization_test(
     X, y = _as_xy(X, y)
     rng = np.random.default_rng(random_state)
     cv = KFold(n_splits=_folds(len(X), cv_folds), shuffle=True, random_state=42)
-    n_components = max(1, min(int(n_components), X.shape[1], len(X) - 1))
+    n_components = _safe_pls_components(len(X), X.shape[1], cv.n_splits, n_components)
     prediction = np.asarray(
         cross_val_predict(PLSRegression(n_components=n_components, scale=True), X, y, cv=cv)
     ).reshape(-1)
@@ -251,7 +267,7 @@ def interval_pls(X, y, wavelengths, n_intervals=10, n_components=2, cv_folds=5):
     for index, variables in enumerate(chunks):
         if len(variables) < 1:
             continue
-        ncomp = max(1, min(int(n_components), len(variables), len(X) - 1))
+        ncomp = _safe_pls_components(len(X), len(variables), cv.n_splits, n_components)
         prediction = np.asarray(
             cross_val_predict(
                 PLSRegression(n_components=ncomp, scale=True),

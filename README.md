@@ -5,13 +5,26 @@
 [![Linux / macOS](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/cross-platform-desktop.yml/badge.svg)](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/cross-platform-desktop.yml)
 [![Python distribution](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/python-distribution.yml/badge.svg)](https://github.com/abd19990044-commits/uv-vis-spectrum-studio/actions/workflows/python-distribution.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.1.1-blue.svg)](CHANGELOG.md)
 
 **UV-Vis Spectrum Studio** is open-source scientific software for UV-Vis spectroscopy, analytical chemistry, chemometrics, publication-quality visualization, quantitative analysis, analytical-method validation, multicomponent spectrophotometry, peak fitting/deconvolution, Fourier/wavelet analysis, and reproducible project archives.
 
 It is designed for analytical chemists, spectroscopy researchers, method-development laboratories, students, and scientists who would otherwise need to combine spreadsheets, plotting software, custom scripts, and separate chemometric tools.
 
-**Current release line: v3.1.0**
+**Current release line: v3.1.1**
+
+**Qualification status (2026-09-24):** v3.1.1 is a research release candidate.
+See [PRODUCTION_REVIEW_2026-09-24.md](PRODUCTION_REVIEW_2026-09-24.md) for executed
+gates and remaining native desktop qualification. This supersedes the earlier
+100-test summary; passing source tests does not qualify Windows/macOS installers.
+
+**Scientific hardening update (2026-09-23):** Wavelength-integral units are
+Abs·nm or Abs·Å; they are not Å/cm². Absolute area splits line segments at
+zero crossings. Calibration supports independently prepared blanks and
+additional regression diagnostics. Small-sample PLS cross-validation limits
+components to the smallest training fold. See
+[SCIENTIFIC_REVIEW_2026-09-23.md](SCIENTIFIC_REVIEW_2026-09-23.md) for verification
+and remaining release gates.
 
 > **Scientific-use statement:** UV-Vis Spectrum Studio is research and analytical-support software. It is not represented by default as a validated GMP, GLP, 21 CFR Part 11, or ISO/IEC 17025 system. Laboratories remain responsible for software qualification, analytical-method validation, access controls, data-integrity controls, and regulatory compliance required by their quality system.
 
@@ -44,6 +57,7 @@ These diagnostics are not universal acceptance limits. Appropriate scan interval
 ### Analytical validation
 
 - Linear calibration with slope, intercept, R², and Sy/x.
+- Sample SD from independently prepared blanks as an explicit LOD/LOQ option.
 - Slope/intercept standard errors and 95% confidence intervals.
 - LOD = 3.3σ/|S| and LOQ = 10σ/|S|.
 - Manual or regression-derived σ.

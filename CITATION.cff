@@ -6,8 +6,8 @@ authors:
   - family-names: Hasan
     given-names: Abdulsalam S.
     affiliation: "University of Mosul, College of Science, Department of Chemistry"
-version: 3.1.0
-date-released: 2026-09-17
+version: 3.1.1
+date-released: 2026-09-24
 license: MIT
 repository-code: "https://github.com/abd19990044-commits/uv-vis-spectrum-studio"
 url: "https://github.com/abd19990044-commits/uv-vis-spectrum-studio"

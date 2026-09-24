@@ -84,14 +84,14 @@ def baseline_als(y: np.ndarray, lam: float = 1e6, p: float = 0.01, niter: int = 
         raise ValueError("ALS lambda must be > 0.")
     if not 0 < p < 1:
         raise ValueError("ALS p must be between 0 and 1.")
-    D = sparse.diags([1, -2, 1], [0, 1, 2], shape=(n - 2, n), format="csc")
+    D = sparse.diags([1, -2, 1], [0, 1, 2], shape=(n - 2, n), format="csc", dtype=float)
     w = np.ones(n)
     z = np.zeros_like(y)
     for _ in range(max(1, int(niter))):
         W = sparse.spdiags(w, 0, n, n)
         Z = W + lam * (D.T @ D)
         z = spsolve(Z, w * y)
-        w = p * (y > z) + (1 - p) * (y < z)
+        w = np.where(y > z, p, 1 - p)
     return np.asarray(z)
 
 
@@ -134,8 +134,15 @@ def normalize(x: np.ndarray, y: np.ndarray, mode: str) -> np.ndarray:
         lo, hi = float(np.nanmin(y)), float(np.nanmax(y))
         return (y - lo) / (hi - lo) if hi != lo else y.copy()
     if mode == "Area = 1":
-        a = float(trapezoid(np.abs(y), x)) if len(x) > 1 else 0.0
-        return y / a if a else y.copy()
+        if len(x) < 2:
+            return y.copy()
+        if np.any(np.diff(x) < 0):
+            order = np.argsort(x)
+            x_s, y_s = x[order], y[order]
+        else:
+            x_s, y_s = x, y
+        a, _ = _piecewise_absolute_integrals(x_s, y_s)
+        return y / a if a > 0 else y.copy()
     raise ValueError(f"Unsupported normalization mode: {mode}")
 
 
@@ -214,18 +221,118 @@ def process_spectrum(
     return x, yy
 
 
+def derivative_unit(order: int, base_unit: str = "Abs") -> str:
+    """Return physically and dimensionally correct derivative unit string."""
+    o = int(order)
+    if base_unit == "1/nm":
+        return f"1/nm^{o + 1}"
+    if o <= 0:
+        return base_unit
+    if o == 1:
+        return f"{base_unit}/nm"
+    if o == 2:
+        return f"{base_unit}/nm²"
+    if o == 3:
+        return f"{base_unit}/nm³"
+    if o == 4:
+        return f"{base_unit}/nm⁴"
+    return f"{base_unit}/nm^{o}"
+
+
+def auc_unit_angstrom(derivative_order: int = 0, base_unit: str = "Abs") -> str:
+    """Unit when the wavelength integral is expressed using Å instead of nm.
+
+    Derivative ordinates retain their original per-nm units. There is no
+    division by cuvette cross-sectional area in a spectral wavelength integral.
+    """
+    o = int(derivative_order)
+    if base_unit == "1/nm":
+        return f"Å/nm^{o + 1}"
+    if o <= 0:
+        return f"{base_unit}·Å"
+    if o == 1:
+        return f"{base_unit}·Å/nm"
+    return f"{base_unit}·Å/nm^{o}"
+
+
+def convert_auc_to_angstrom(
+    signed_auc_nm: float,
+    absolute_auc_nm: float,
+    *,
+    base_unit: str = "Abs",
+) -> tuple[float, float, str]:
+    """Convert a wavelength integral from base-unit·nm to base-unit·Å."""
+    if not np.all(np.isfinite([signed_auc_nm, absolute_auc_nm])):
+        raise ValueError("Integrated areas must be finite.")
+    return float(signed_auc_nm * 10), float(absolute_auc_nm * 10), f"{base_unit}·Å"
+
+
+def auc_unit(derivative_order: int = 0, base_unit: str = "Abs", unit_mode: str = "Abs·nm") -> str:
+    """Return integrated AUC unit string following dimensional analysis.
+    
+    If unit_mode is 'Abs·Å', returns the wavelength integral in ångströms.
+    Default unit_mode is 'Abs·nm' for full backward compatibility.
+    """
+    if str(unit_mode).strip() in {"Abs·Å", "angstrom", "Å"}:
+        return auc_unit_angstrom(derivative_order, base_unit)
+    o = int(derivative_order)
+    if base_unit == "1/nm":
+        return "dimensionless" if o == 0 else f"1/nm^{o}"
+    if o <= 0:
+        return f"{base_unit}·nm"
+    if o == 1:
+        return f"{base_unit}"
+    if o == 2:
+        return f"{base_unit}/nm"
+    if o == 3:
+        return f"{base_unit}/nm²"
+    if o == 4:
+        return f"{base_unit}/nm³"
+    return f"{base_unit}/nm^{o-1}"
+
+
 def integrate_range(x: np.ndarray, y: np.ndarray, xmin: float, xmax: float) -> tuple[float, float, np.ndarray, np.ndarray]:
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
+    if len(x) < 2:
+        return 0.0, 0.0, np.array([]), np.array([])
+    if np.any(np.diff(x) < 0):
+        order = np.argsort(x)
+        x, y = x[order], y[order]
     lo, hi = sorted((float(xmin), float(xmax)))
-    if len(x) < 2 or hi <= x[0] or lo >= x[-1]:
+    if hi <= lo or hi <= x[0] or lo >= x[-1]:
         return 0.0, 0.0, np.array([]), np.array([])
     lo = max(lo, float(x[0]))
     hi = min(hi, float(x[-1]))
+    if hi <= lo:
+        return 0.0, 0.0, np.array([]), np.array([])
     mask = (x > lo) & (x < hi)
     xx = np.r_[lo, x[mask], hi]
     yy = np.r_[np.interp(lo, x, y), y[mask], np.interp(hi, x, y)]
-    return float(trapezoid(yy, xx)), float(trapezoid(np.abs(yy), xx)), xx, yy
+    absolute, _ = _piecewise_absolute_integrals(xx, yy)
+    return float(trapezoid(yy, xx)), absolute, xx, yy
+
+
+def _piecewise_absolute_integrals(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+    """Exact area and first moment of |piecewise-linear signal|.
+
+    A segment crossing zero is split at its interpolated root; trapezoids of
+    absolute endpoint values otherwise overestimate its absolute area.
+    """
+    area = moment = 0.0
+    for left, right, a, b in zip(x[:-1], x[1:], y[:-1], y[1:]):
+        if right <= left:
+            continue
+        segments = [(float(left), float(right), abs(float(a)), abs(float(b)))]
+        if a * b < 0:
+            root = float(left - a * (right - left) / (b - a))
+            segments = [(float(left), root, abs(float(a)), 0.0),
+                        (root, float(right), 0.0, abs(float(b)))]
+        for x0, x1, y0, y1 in segments:
+            dx = x1 - x0
+            area += dx * (y0 + y1) / 2
+            moment += dx * ((2*x0 + x1)*y0 + (x0 + 2*x1)*y1) / 6
+    return area, moment
 
 
 def zero_crossings(x: np.ndarray, y: np.ndarray, tolerance: float = 0.0) -> list[dict[str, float]]:
@@ -234,6 +341,9 @@ def zero_crossings(x: np.ndarray, y: np.ndarray, tolerance: float = 0.0) -> list
     rows: list[dict[str, float]] = []
     if len(x) < 2:
         return rows
+    if np.any(np.diff(x) < 0):
+        order = np.argsort(x)
+        x, y = x[order], y[order]
     tol = abs(float(tolerance))
     yy = y.copy()
     yy[np.abs(yy) <= tol] = 0.0
@@ -253,8 +363,13 @@ def zero_crossings(x: np.ndarray, y: np.ndarray, tolerance: float = 0.0) -> list
 def signal_at_wavelength(x: np.ndarray, y: np.ndarray, wavelength: float) -> float:
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
+    if len(x) == 0:
+        return float("nan")
+    if np.any(np.diff(x) < 0):
+        order = np.argsort(x)
+        x, y = x[order], y[order]
     w = float(wavelength)
-    if len(x) == 0 or w < x[0] or w > x[-1]:
+    if w < x[0] or w > x[-1]:
         return float("nan")
     return float(np.interp(w, x, y))
 
@@ -288,8 +403,13 @@ def spectral_arithmetic(x1: np.ndarray, y1: np.ndarray, x2: np.ndarray, y2: np.n
     y1 = np.asarray(y1, dtype=float)
     x2 = np.asarray(x2, dtype=float)
     y2 = np.asarray(y2, dtype=float)
-    lo = max(float(np.min(x1)), float(np.min(x2)))
-    hi = min(float(np.max(x1)), float(np.max(x2)))
+    if len(x1) == 0 or len(x2) == 0:
+        return np.array([]), np.array([])
+    if np.any(np.diff(x2) < 0):
+        order2 = np.argsort(x2)
+        x2, y2 = x2[order2], y2[order2]
+    lo = max(float(np.min(x1)), float(x2[0]))
+    hi = min(float(np.max(x1)), float(x2[-1]))
     mask = (x1 >= lo) & (x1 <= hi)
     x = x1[mask]
     a = y1[mask]
@@ -323,11 +443,14 @@ def calculate_metrics(x: np.ndarray, y: np.ndarray, prominence: float | None = N
     x, y = x[mask], y[mask]
     if len(x) == 0:
         raise ValueError("Spectrum is empty after cropping.")
+    if len(x) > 1 and np.any(np.diff(x) < 0):
+        order = np.argsort(x)
+        x, y = x[order], y[order]
 
     imax, imin = int(np.nanargmax(y)), int(np.nanargmin(y))
     signed_area = float(trapezoid(y, x)) if len(x) > 1 else 0.0
-    absolute_area = float(trapezoid(np.abs(y), x)) if len(x) > 1 else 0.0
-    centroid = float(trapezoid(x * np.abs(y), x) / absolute_area) if absolute_area else float("nan")
+    absolute_area, absolute_moment = _piecewise_absolute_integrals(x, y)
+    centroid = float(absolute_moment / absolute_area) if absolute_area else float("nan")
 
     if prominence is None:
         yrange = float(np.nanmax(y) - np.nanmin(y))

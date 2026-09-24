@@ -1,0 +1,22 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0
+rootdir: G:\uv-vis\uv-vis-spectrum-studio
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1, cov-7.1.0
+collected 62 items
+
+tests\test_advanced.py ..                                                [  3%]
+tests\test_analysis.py ..........                                        [ 19%]
+tests\test_chemometrics.py .........                                     [ 33%]
+tests\test_cli.py ..                                                     [ 37%]
+tests\test_export_browser.py ...                                         [ 41%]
+tests\test_io.py ..                                                      [ 45%]
+tests\test_project_workspace.py ...                                      [ 50%]
+tests\test_quality_validation_hardening.py ..........                    [ 66%]
+tests\test_quantitation_transforms.py ......                             [ 75%]
+tests\test_streamlit_smoke.py .                                          [ 77%]
+tests\test_v3_analytical_suite.py .........                              [ 91%]
+tests\test_weighted_calibration.py .....                                 [100%]
+
+============================= 62 passed in 6.20s ==============================

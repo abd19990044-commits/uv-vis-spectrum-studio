@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 env:
-  RELEASE_VERSION: "3.1.0"
+  RELEASE_VERSION: "3.1.1"
 
 jobs:
   build-python-distribution:
@@ -87,14 +87,16 @@ jobs:
           source "$RUNNER_TEMP/uvvis-wheel-smoke/bin/activate"
           python -m pip install --upgrade pip
           python -m pip install dist/*.whl
+          pushd "$RUNNER_TEMP"
           python - <<'PY'
           import uvvis_studio
           from uvvis_studio import analysis, chemometrics, export, io, multicomponent, peakfit, project, quality, validation
           print('installed-version', uvvis_studio.__version__)
-          assert uvvis_studio.__version__ == '3.1.0'
+          assert uvvis_studio.__version__ == '3.1.1'
           PY
           uvvis-spectrum-studio --version
           python -m pip check
+          popd
           deactivate
 
       - name: Generate checksums and build metadata
@@ -113,7 +115,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: UVVis-Spectrum-Studio-Python-v3.1.0
+          name: UVVis-Spectrum-Studio-Python-v3.1.1
           path: dist/*
           retention-days: 30
 

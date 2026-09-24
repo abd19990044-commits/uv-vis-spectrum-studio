@@ -7,5 +7,5 @@ PyWavelets>=1.7,<2
 plotly>=6.0,<7
 openpyxl>=3.1,<4
 kaleido>=1.0,<2
-Pillow>=11,<12
+Pillow>=12.3,<13
 xlrd>=2.0,<3

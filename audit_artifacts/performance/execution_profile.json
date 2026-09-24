@@ -1,0 +1,13 @@
+{
+  "test_execution": {
+    "total_tests": 83,
+    "passed": 83,
+    "failed": 0,
+    "skipped": 0,
+    "duration_seconds": 15.83,
+    "average_test_time_ms": 190.7
+  },
+  "compilation_time_seconds": 0.42,
+  "launcher_self_test_seconds": 0.35,
+  "playwright_visual_qa_workflow_seconds": 22.1
+}

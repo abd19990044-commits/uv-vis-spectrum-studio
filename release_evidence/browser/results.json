@@ -1,0 +1,16 @@
+{
+  "version": "3.1.1",
+  "module": "/workspace/scratch/44553d150944/project/uv-vis-spectrum-studio/uvvis_studio/__init__.py",
+  "mode": "source",
+  "browser_version": "134.0.6998.35",
+  "upload_headerless_csv": true,
+  "auc": {
+    "observed": 14.7196,
+    "analytic_gaussian_integral": 14.726120259169024
+  },
+  "fourth_derivative_axis": "Fourth Derivative d\u2074(Abs)/d\u03bb\u2074 (Abs/nm\u2074)",
+  "png_svg_pdf_export": true,
+  "stale_export_invalidated": true,
+  "project_roundtrip": true,
+  "status": "passed"
+}
